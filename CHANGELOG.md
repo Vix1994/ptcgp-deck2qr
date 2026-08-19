@@ -6,6 +6,11 @@ The project follows Keep a Changelog structure. A public release versioning poli
 
 ## Unreleased
 
+### Fixed
+
+- Parse the live Game8 card-cell format where the image alt contains only the set and
+  card number while the adjacent cell text contains the card name and quantity.
+
 ### Added
 
 - Initial Python project scaffold.

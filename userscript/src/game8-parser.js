@@ -1,7 +1,7 @@
 const CARD_ALT_WITH_COUNT_PATTERN =
   /^Pokemon TCG Pocket\s*-\s*(\S+)\s+(\d+)\s+Card\s+(.+?)\s*[×xX]\s*([12])\s*$/i;
 const CARD_IDENTITY_ALT_PATTERN =
-  /^Pokemon TCG Pocket\s*-\s*(\S+)\s+(\d+)\s+Card\s+(.+?)\s*$/i;
+  /^Pokemon TCG Pocket\s*-\s*(\S+)\s+(\d+)\s+Card(?:\s+(.+?))?\s*$/i;
 const COUNT_TEXT_PATTERN = /[×xX]\s*([12])\s*$/;
 
 const SET_PATTERN = /^([AB]\d+)([a-z]?)$/i;
@@ -35,7 +35,7 @@ export function parseGame8CardIdentity(alt) {
   return {
     set,
     number,
-    name: match[3].trim(),
+    name: match[3]?.trim(),
     count: match[4] ? Number.parseInt(match[4], 10) : undefined,
     printKey: printKey(set, number),
   };
@@ -43,7 +43,7 @@ export function parseGame8CardIdentity(alt) {
 
 export function parseGame8CardAlt(alt) {
   const card = parseGame8CardIdentity(alt);
-  return card?.count ? card : null;
+  return card?.count && card.name ? card : null;
 }
 
 function aggregateCards(evidence) {
@@ -58,11 +58,12 @@ function aggregateCards(evidence) {
 
     const countMatch = COUNT_TEXT_PATTERN.exec(item.text.trim());
     const count = identity.count ?? (countMatch ? Number.parseInt(countMatch[1], 10) : undefined);
-    if (!count) {
+    const name = identity.name ?? item.text.trim().replace(COUNT_TEXT_PATTERN, "").trim();
+    if (!count || !name) {
       rejected.push(`${item.alt} | ${item.text}`);
       continue;
     }
-    const card = { ...identity, count };
+    const card = { ...identity, name, count };
 
     const existing = cardsByPrint.get(card.printKey);
     if (existing) {

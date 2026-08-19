@@ -29,13 +29,13 @@ test("parses set, number, name, and count from a Game8 card alt", () => {
   );
 });
 
-test("reads identity from img alt and quantity from its surrounding Game8 table cell", () => {
+test("reads identity-only img alt plus card name and quantity from the live Game8 cell", () => {
   assert.deepEqual(
-    parseGame8CardIdentity("Pokemon TCG Pocket- B1a 001 Card Charmander"),
+    parseGame8CardIdentity("Pokemon TCG Pocket- B1a 001 Card"),
     {
       set: "B1a",
       number: 1,
-      name: "Charmander",
+      name: undefined,
       count: undefined,
       printKey: "B1a-001",
     },
@@ -43,10 +43,7 @@ test("reads identity from img alt and quantity from its surrounding Game8 table 
 
   const parsed = parseGame8DeckCells([
     {
-      alts: [
-        "Pokemon TCG Pocket- B1a 001 Card Charmander",
-        "Magnifying Glass Icon",
-      ],
+      alts: ["Pokemon TCG Pocket- B1a 001 Card", "Magnifying Glass Icon"],
       text: "Charmander ×2",
     },
   ]);
@@ -59,7 +56,7 @@ test("reads identity from img alt and quantity from its surrounding Game8 table 
 test("rejects a recognized card identity when its adjacent quantity is missing", () => {
   const parsed = parseGame8DeckCells([
     {
-      alts: ["Pokemon TCG Pocket- B1a 001 Card Charmander"],
+      alts: ["Pokemon TCG Pocket- B1a 001 Card"],
       text: "Charmander",
     },
   ]);
@@ -94,7 +91,7 @@ test("parses a complete 20-card Game8 deck and ignores unrelated images", () => 
     const match = /^(.*?\sCard\s+)(.+?)\s+([×xX]\s*[12])$/.exec(alt);
     assert.ok(match);
     return {
-      alts: [`${match[1]}${match[2]}`],
+      alts: [match[1].trim()],
       text: `${match[2]} ${match[3]}`,
     };
   });
