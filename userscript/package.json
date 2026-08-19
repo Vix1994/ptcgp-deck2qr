@@ -1,6 +1,6 @@
 {
   "name": "ptcgp-game8-deck-qr-userscript",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "cardMapRelease": "v0.2.0",
   "private": true,
   "type": "module",
