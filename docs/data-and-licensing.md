@@ -6,7 +6,16 @@ No license has been selected for `ptcgp-deck2qr` yet. Add a project `LICENSE` on
 
 ## External card database
 
-The planned data source is `flibustier/pokemon-tcg-pocket-database`, whose repository code and metadata are published under MIT at the time of project planning. Pin or record a version/commit when consuming it, and preserve required notices when copying licensed material.
+The current generated userscript index is derived from
+[`flibustier/pokemon-tcg-pocket-database`](https://github.com/flibustier/pokemon-tcg-pocket-database)
+version `2.9.1`, whose repository code and metadata are published under MIT. The exact
+`dist/cards.json` input contained 3,761 cards and had SHA-256
+`eea30451bdbcf70788fb8e188c7fbe69182f32fa7597fc12ee0272dc9f4e006a`.
+The upstream copyright and complete MIT License are retained in
+[`THIRD_PARTY_NOTICES.md`](../THIRD_PARTY_NOTICES.md).
+
+Pin or record a version/commit when consuming a newer release, and update the retained
+notice whenever the generated index changes.
 
 The project should normally read an external checkout or release path and generate a local index. It must not maintain a divergent authoritative card list.
 

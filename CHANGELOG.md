@@ -19,3 +19,5 @@ The project follows Keep a Changelog structure. A public release versioning poli
   fail-closed 20-card parsing, energy confirmation, and local deck-share QR generation.
 - GitHub Raw userscript distribution with a lightweight Tampermonkey update metadata
   endpoint.
+- Retained upstream attribution, versioned provenance, and MIT License notice for the
+  generated card-print index.

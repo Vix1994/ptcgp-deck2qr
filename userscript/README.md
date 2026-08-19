@@ -54,4 +54,10 @@ npm run check
 The generated index records the source SHA-256 and card count. Do not hand-edit it or
 commit the source database and official card images.
 
+The bundled compact index was generated from
+[`flibustier/pokemon-tcg-pocket-database`][database] version `2.9.1`. Its upstream
+copyright and MIT License are retained in the repository's
+[third-party notices](../THIRD_PARTY_NOTICES.md).
+
 [install]: https://raw.githubusercontent.com/Vix1994/ptcgp-deck2qr/main/userscript/release/game8-ptcgp-deck-qr.user.js
+[database]: https://github.com/flibustier/pokemon-tcg-pocket-database

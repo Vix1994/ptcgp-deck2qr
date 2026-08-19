@@ -75,6 +75,7 @@ The canonical format is specified in [Deck Text Format v1](docs/deck-text-format
 - [Contributing](CONTRIBUTING.md)
 - [Architecture decisions](docs/decisions/)
 - [Game8 userscript](userscript/README.md)
+- [Third-party notices](THIRD_PARTY_NOTICES.md)
 
 ## Development setup
 
@@ -114,4 +115,4 @@ authoritative source. See the [card database contract](docs/card-database-contra
 
 ## License status
 
-No license has been selected for this repository yet. Third-party database code, metadata, model weights, and Pokémon artwork retain their own licenses and rights. See [Data and licensing](docs/data-and-licensing.md).
+No license has been selected for this repository yet. Third-party database code, metadata, model weights, and Pokémon artwork retain their own licenses and rights. See [Data and licensing](docs/data-and-licensing.md) and the retained [third-party notices](THIRD_PARTY_NOTICES.md).
