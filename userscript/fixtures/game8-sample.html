@@ -56,6 +56,12 @@
         </tbody>
       </table>
     </main>
-    <script src="../release/game8-ptcgp-deck-qr.user.js"></script>
+    <script src="../release/game8-ptcgp-deck-qr.core.js"></script>
+    <script type="module">
+      const cardMap = await fetch("../release/game8-ptcgp-deck-qr.card-map.json").then(
+        (response) => response.json(),
+      );
+      globalThis.PTCGPGame8DeckQR.start(cardMap);
+    </script>
   </body>
 </html>

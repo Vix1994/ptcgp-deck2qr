@@ -12,7 +12,9 @@ generates a deck-share QR locally in the browser.
 
 [Install the current userscript directly from GitHub Raw](https://raw.githubusercontent.com/Vix1994/ptcgp-deck2qr/main/userscript/release/game8-ptcgp-deck-qr.user.js).
 After this one-time installation, Tampermonkey checks a lightweight metadata file and
-updates the script automatically when its version increases.
+updates the script automatically when its version increases. The installed loader keeps
+the versioned core and compact card map as separate integrity-checked resources, so a
+normal code update does not replace the unchanged map.
 
 This adapter is separate from the screenshot-recognition milestone below; it does not
 add QR encoding to, or depend on, the recognition pipeline.
@@ -75,6 +77,7 @@ The canonical format is specified in [Deck Text Format v1](docs/deck-text-format
 - [Contributing](CONTRIBUTING.md)
 - [Architecture decisions](docs/decisions/)
 - [Game8 userscript](userscript/README.md)
+- [Third-party notices](THIRD_PARTY_NOTICES.md)
 
 ## Development setup
 
@@ -114,4 +117,4 @@ authoritative source. See the [card database contract](docs/card-database-contra
 
 ## License status
 
-No license has been selected for this repository yet. Third-party database code, metadata, model weights, and Pokémon artwork retain their own licenses and rights. See [Data and licensing](docs/data-and-licensing.md).
+No license has been selected for this repository yet. Third-party database code, metadata, model weights, and Pokémon artwork retain their own licenses and rights. See [Data and licensing](docs/data-and-licensing.md) and the retained [third-party notices](THIRD_PARTY_NOTICES.md).

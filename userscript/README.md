@@ -11,16 +11,32 @@ deck-share QR code locally in the browser.
 2. Open the [Raw userscript][install] and confirm installation in Tampermonkey.
 3. Reload the Game8 page.
 
-Tampermonkey checks the small `game8-ptcgp-deck-qr.meta.js` file and downloads the full
-userscript only after its version increases. Existing manual installations need to
+Tampermonkey checks the small `game8-ptcgp-deck-qr.meta.js` file and downloads a new
+loader only after its version increases. The loader declares a versioned core module
+with `@require` and a separately versioned card-map resource with `@resource`; both are
+pinned by SHA-256 and cached by Tampermonkey. Existing manual installations need to
 install the Raw release once to receive these automatic updates.
 
-Version 0.1.1 supports Game8's current split markup: the card print identity is read
+Version 0.2.0 supports Game8's current split markup: the card print identity is read
 from the image `alt`, while the `×1` or `×2` quantity is read from the surrounding
 table cell.
 
-The release is self-contained. It does not fetch JavaScript or a full card database
-from GitHub at runtime, and it does not upload the deck list.
+At installation or update, Tampermonkey downloads the tagged core and compact card map
+from GitHub Raw. Normal page use reads those cached resources; it does not download the
+complete upstream database or upload the deck list.
+
+## Release layout
+
+```text
+game8-ptcgp-deck-qr.meta.js      update metadata (~1.1 KB)
+game8-ptcgp-deck-qr.user.js      installed loader (~1.6 KB)
+game8-ptcgp-deck-qr.core.js      parser, UI, and QR core (~43 KB)
+game8-ptcgp-deck-qr.card-map.json  compact print index (~77 KB)
+```
+
+The loader and metadata use stable `main` URLs. The core uses the tag matching
+`package.json` version. `cardMapRelease` can remain on an earlier tag for code-only
+updates, avoiding an unnecessary card-map download.
 
 ## Behavior and failure rules
 
@@ -44,6 +60,18 @@ npm ci
 npm run check
 ```
 
+For a release:
+
+1. increase `version` in `package.json` and `package-lock.json`;
+2. keep `cardMapRelease` unchanged for a code-only update, or set it to the new release
+   tag after rebuilding the card map;
+3. run `npm run check` and commit all four generated release artifacts;
+4. create and push the matching immutable `vX.Y.Z` tag; and
+5. only then publish the new loader and metadata on `main`.
+
+Never move or replace a published release tag: installed loaders pin both its URL and
+its SHA-256 value.
+
 Rebuild the compact print-to-deck-number index from an external database checkout:
 
 ```powershell
@@ -54,4 +82,10 @@ npm run check
 The generated index records the source SHA-256 and card count. Do not hand-edit it or
 commit the source database and official card images.
 
+The bundled compact index was generated from
+[`flibustier/pokemon-tcg-pocket-database`][database] version `2.9.1`. Its upstream
+copyright and MIT License are retained in the repository's
+[third-party notices](../THIRD_PARTY_NOTICES.md).
+
 [install]: https://raw.githubusercontent.com/Vix1994/ptcgp-deck2qr/main/userscript/release/game8-ptcgp-deck-qr.user.js
+[database]: https://github.com/flibustier/pokemon-tcg-pocket-database
