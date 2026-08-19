@@ -1,0 +1,48 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyd
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+
+# JavaScript userscript tooling
+node_modules/
+npm-debug.log*
+userscript/.cache/
+
+# Virtual environments
+.venv/
+venv/
+
+# Test and quality tools
+.coverage
+coverage.xml
+htmlcov/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+
+# IDE and OS files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Local data and generated artifacts
+data/index/
+input/
+output/
+*.recognized.png
+*.partial.txt
+
+# Local database checkouts or release assets
+vendor/
+ptcgp-database/
+
+# Environment files
+.env
+.env.*
+!.env.example
