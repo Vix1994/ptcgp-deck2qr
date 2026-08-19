@@ -1,6 +1,7 @@
 {
   "name": "ptcgp-game8-deck-qr-userscript",
-  "version": "0.1.2",
+  "version": "0.2.0",
+  "cardMapRelease": "v0.2.0",
   "private": true,
   "type": "module",
   "description": "Add PTCGP deck-share QR actions to Game8 deck lists.",
@@ -8,7 +9,7 @@
     "build": "node tools/build.mjs",
     "build:card-map": "node tools/build-card-map.mjs",
     "test": "node --test test/*.test.js",
-    "check": "npm run test && npm run build"
+    "check": "npm run build && npm run test"
   },
   "dependencies": {
     "ptcgp-deckcode": "2.0.0"

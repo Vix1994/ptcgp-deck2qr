@@ -8,7 +8,7 @@ the license, or absence of a license, for `ptcgp-deck2qr` itself.
 The compact card-print index distributed in:
 
 - `userscript/generated/card-map.json`; and
-- `userscript/release/game8-ptcgp-deck-qr.user.js`
+- `userscript/release/game8-ptcgp-deck-qr.card-map.json`
 
 is generated from [`flibustier/pokemon-tcg-pocket-database`][database].
 

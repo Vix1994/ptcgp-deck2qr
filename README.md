@@ -12,7 +12,9 @@ generates a deck-share QR locally in the browser.
 
 [Install the current userscript directly from GitHub Raw](https://raw.githubusercontent.com/Vix1994/ptcgp-deck2qr/main/userscript/release/game8-ptcgp-deck-qr.user.js).
 After this one-time installation, Tampermonkey checks a lightweight metadata file and
-updates the script automatically when its version increases.
+updates the script automatically when its version increases. The installed loader keeps
+the versioned core and compact card map as separate integrity-checked resources, so a
+normal code update does not replace the unchanged map.
 
 This adapter is separate from the screenshot-recognition milestone below; it does not
 add QR encoding to, or depend on, the recognition pipeline.

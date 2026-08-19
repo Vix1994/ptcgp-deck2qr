@@ -1,6 +1,5 @@
 import { createDeckCode } from "ptcgp-deckcode";
 import { deckCodeToDataURL } from "ptcgp-deckcode/qr";
-import cardMap from "../generated/card-map.json";
 import {
   deckBuilderNumbers,
   parseGame8DeckAlts,
@@ -28,6 +27,7 @@ const ENERGY_BY_LABEL = new Map(
 
 let activeDialog;
 let mutationTimer;
+let started = false;
 
 function headingRank(heading) {
   return Number.parseInt(heading.tagName.slice(1), 10);
@@ -125,7 +125,7 @@ function sanitizeFilename(value) {
   return sanitized || "ptcgp-deck";
 }
 
-function createActionButton(heading) {
+function createActionButton(heading, cardMap) {
   const host = document.createElement("span");
   host.dataset.ptcgpDeckQrAction = "";
   const shadow = host.attachShadow({ mode: "open" });
@@ -178,10 +178,10 @@ function createActionButton(heading) {
   heading.append(host);
 }
 
-function injectButtons() {
+function injectButtons(cardMap) {
   for (const heading of deckHeadings()) {
     if (!heading.querySelector(":scope > [data-ptcgp-deck-qr-action]")) {
-      createActionButton(heading);
+      createActionButton(heading, cardMap);
     }
   }
 }
@@ -536,12 +536,28 @@ function showDialog({ name, deck, numbers, detectedEnergy, error, trigger }) {
   activeDialog.shadow.querySelector(".close").focus();
 }
 
-injectButtons();
-new MutationObserver(() => {
-  window.clearTimeout(mutationTimer);
-  mutationTimer = window.setTimeout(injectButtons, 120);
-}).observe(document.body, { childList: true, subtree: true });
+export function start(cardMap) {
+  if (started) {
+    return;
+  }
+  if (
+    typeof cardMap !== "object" ||
+    cardMap === null ||
+    typeof cardMap.source?.sha256 !== "string" ||
+    typeof cardMap.entries !== "object" ||
+    cardMap.entries === null
+  ) {
+    throw new Error("卡牌索引资源格式无效");
+  }
 
-console.info(
-  `[PTCGP Game8 Deck QR] v${__USERSCRIPT_VERSION__}; card map ${cardMap.source.sha256.slice(0, 12)}`,
-);
+  started = true;
+  injectButtons(cardMap);
+  new MutationObserver(() => {
+    window.clearTimeout(mutationTimer);
+    mutationTimer = window.setTimeout(() => injectButtons(cardMap), 120);
+  }).observe(document.body, { childList: true, subtree: true });
+
+  console.info(
+    `[PTCGP Game8 Deck QR] v${__USERSCRIPT_VERSION__}; card map ${cardMap.source.sha256.slice(0, 12)}`,
+  );
+}

@@ -21,3 +21,5 @@ The project follows Keep a Changelog structure. A public release versioning poli
   endpoint.
 - Retained upstream attribution, versioned provenance, and MIT License notice for the
   generated card-print index.
+- Modular Tampermonkey distribution with a small loader, independently versioned core
+  and card-map resources, and generated SHA-256 integrity pins.
