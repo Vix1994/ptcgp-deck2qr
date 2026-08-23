@@ -142,7 +142,13 @@ function App() {
                 : qr.status === 'error'
                   ? t('result.qrFailed')
                   : t('result.qrWorking'))
-            : t('result.rejected'),
+            : result.qr_is_draft
+              ? (qr.status === 'ready'
+                  ? t('result.draftQrReady', {count: result.uncertain_entity_count})
+                  : qr.status === 'error'
+                    ? t('result.draftQrFailed')
+                    : t('result.draftQrWorking'))
+              : t('result.rejected'),
         }
       : busy
         ? {tone: 'idle', symbol: '···', headline: t('result.recognizing'), description: t('result.firstRun')}
@@ -180,23 +186,21 @@ function App() {
       if (!response.ok) throw new Error(payload.error || t('request.failed'));
       setResult(payload);
       setView(payload.artifacts?.['recognized.png'] ? 'annotated' : 'original');
-      if (payload.accepted) {
-        if (payload.qr_error) {
-          setQr({status: 'error', error: payload.qr_error});
-        } else if (payload.qr_input) {
-          setQr({status: 'loading'});
-          try {
-            const generated = await generateDeckQr(payload.qr_input);
-            setQr({status: 'ready', ...generated, name: payload.qr_input.name});
-          } catch (error) {
-            setQr({
-              status: 'error',
-              error: error instanceof Error ? error.message : t('qr.failed'),
-            });
-          }
-        } else {
-          setQr({status: 'error', error: t('qr.missingInput')});
+      if (payload.qr_error) {
+        setQr({status: 'error', error: payload.qr_error});
+      } else if (payload.qr_input) {
+        setQr({status: 'loading'});
+        try {
+          const generated = await generateDeckQr(payload.qr_input);
+          setQr({status: 'ready', ...generated, name: payload.qr_input.name});
+        } catch (error) {
+          setQr({
+            status: 'error',
+            error: error instanceof Error ? error.message : t('qr.failed'),
+          });
         }
+      } else if (payload.accepted) {
+        setQr({status: 'error', error: t('qr.missingInput')});
       }
     } catch (error) {
       const text = error instanceof Error ? error.message : t('request.failed');
@@ -407,7 +411,14 @@ function ResultPanel({result, state, copied, qr, qrCopied, cacheKey, deckArtifac
         <h3>{state.headline}</h3>
       </div>
       {errors.length > 0 && <div className="error-list"><strong>{t('results.failed')}</strong><div>{errors.map(error => errorLabel(language, error)).join(' · ')}</div></div>}
-      {result?.accepted && <QrOutput qr={qr} copied={qrCopied} onCopy={onCopyDeckCode} t={t} />}
+      {(result?.accepted || result?.qr_is_draft) && <QrOutput
+        qr={qr}
+        draft={Boolean(result?.qr_is_draft)}
+        uncertainCount={result?.uncertain_entity_count ?? 0}
+        copied={qrCopied}
+        onCopy={onCopyDeckCode}
+        t={t}
+      />}
       {result && <details className="result-details">
         <summary><span>{t('results.details')}</span><small>{t('results.entries', {count: cards.length})}</small></summary>
         <div className="card-results">
@@ -432,18 +443,18 @@ function ResultPanel({result, state, copied, qr, qrCopied, cacheKey, deckArtifac
   );
 }
 
-function QrOutput({qr, copied, onCopy, t}) {
+function QrOutput({qr, draft, uncertainCount, copied, onCopy, t}) {
   const filename = `${sanitizeFilename(qr.name || 'ptcgp-deck')}-qr.png`;
   return (
-    <div className="qr-output" data-status={qr.status} aria-live="polite">
+    <div className="qr-output" data-status={qr.status} data-draft={draft} aria-live="polite">
       <div className="qr-output-heading">
-        <strong>{t('qr.title')}</strong>
-        <span>{qr.status === 'ready' ? t('qr.ready') : qr.status === 'error' ? t('qr.error') : t('qr.working')}</span>
+        <strong>{t(draft ? 'qr.draftTitle' : 'qr.title')}</strong>
+        <span>{qr.status === 'ready' ? t(draft ? 'qr.draftReady' : 'qr.ready') : qr.status === 'error' ? t('qr.error') : t('qr.working')}</span>
       </div>
       {qr.status === 'ready' ? <div className="qr-ready">
         <img src={qr.dataUrl} alt={t('qr.alt', {name: qr.name || 'PTCGP'})} />
         <div className="qr-copy">
-          <p>{t('qr.scanHint')}</p>
+          <p>{draft ? t('qr.draftScanHint', {count: uncertainCount}) : t('qr.scanHint')}</p>
           <a className="primary-button compact" href={qr.dataUrl} download={filename}>{t('qr.download')}</a>
           <button className="secondary-button" type="button" onClick={onCopy}>{copied ? t('qr.copied') : t('qr.copy')}</button>
         </div>

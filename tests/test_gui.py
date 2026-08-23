@@ -19,6 +19,8 @@ from ptcgp_deck2qr.gui import (
     create_server,
     recognize_payload,
 )
+from ptcgp_deck2qr.matching import MatchPolicy
+from ptcgp_deck2qr.pipeline import RecognitionRuntime, load_recognition_runtime
 
 from .helpers import make_database, make_screenshot
 
@@ -111,6 +113,69 @@ def test_gui_recognizes_synthetic_deck_over_http(tmp_path: Path) -> None:
         assert b"energy: lightning" in deck
         assert content_type.startswith("text/plain")
         assert get_bytes(f"{base_url}/artifacts/recognized.png")[2] == "image/png"
+
+
+def test_gui_reuses_loaded_recognition_runtime(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    database = make_database(tmp_path, count=10)
+    image = tmp_path / "deck.png"
+    make_screenshot(image)
+    config = GuiConfig(database, tmp_path / "output", port=0)
+    payload = {
+        "filename": image.name,
+        "image_base64": base64.b64encode(image.read_bytes()).decode(),
+        "energies": ["lightning"],
+        "style": "separate-cards",
+    }
+    calls = 0
+    real_loader = load_recognition_runtime
+
+    def tracking_loader(
+        database_path: str | Path, *, index_path: str | Path | None = None
+    ) -> RecognitionRuntime:
+        nonlocal calls
+        calls += 1
+        return real_loader(database_path, index_path=index_path)
+
+    monkeypatch.setattr("ptcgp_deck2qr.gui.load_recognition_runtime", tracking_loader)
+    with running_server(config) as (_, base_url):
+        assert post_json(f"{base_url}/api/recognize", payload)[0] == 200
+        assert post_json(f"{base_url}/api/recognize", payload)[0] == 200
+
+    assert calls == 1
+
+
+def test_gui_returns_draft_qr_for_entity_only_ambiguity(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    database = make_database(tmp_path, count=10)
+    image = tmp_path / "deck.png"
+    make_screenshot(image)
+    config = GuiConfig(database, tmp_path / "output", port=0)
+    payload = {
+        "filename": image.name,
+        "image_base64": base64.b64encode(image.read_bytes()).decode(),
+        "energies": ["lightning"],
+        "style": "separate-cards",
+    }
+    strict_policy = MatchPolicy("test-reject-all", min_score=1.1, min_entity_margin=1.1)
+    monkeypatch.setattr(
+        "ptcgp_deck2qr.pipeline.policy_for_style",
+        lambda _style: strict_policy,
+    )
+
+    with running_server(config) as (_, base_url):
+        status, result = post_json(f"{base_url}/api/recognize", payload)
+
+    assert status == 200
+    assert result["accepted"] is False
+    assert result["card_count"] == 20
+    assert result["qr_is_draft"] is True
+    assert result["uncertain_entity_count"] == 20
+    assert isinstance(result["qr_input"], dict)
+    assert result["qr_error"] is None
+    assert "# PTCGP-DECK 1" in str(result["deck_text"])
 
 
 def test_gui_rejects_busy_and_unknown_routes(tmp_path: Path) -> None:

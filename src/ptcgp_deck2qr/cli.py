@@ -52,7 +52,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="external ptcgp-database/dist path (or PTCGP_DATABASE_PATH)",
     )
     gui.add_argument("--output-dir", "--output", type=Path, default=Path("output"))
-    gui.add_argument("--index-path", type=Path)
+    gui.add_argument("--index-path", type=Path, default=_existing_default_index())
     gui.add_argument("--host", default="127.0.0.1")
     gui.add_argument("--port", type=int, default=8765)
     gui.add_argument("--no-open", action="store_true", help="do not open a browser automatically")
@@ -110,6 +110,13 @@ def main(argv: Sequence[str] | None = None) -> int:
 def _database_from_environment() -> Path | None:
     value = os.environ.get("PTCGP_DATABASE_PATH")
     return Path(value) if value else None
+
+
+def _existing_default_index() -> Path | None:
+    """Use the documented local index automatically when it already exists."""
+
+    path = Path("data/index/fingerprint.json")
+    return path if path.is_file() else None
 
 
 if __name__ == "__main__":

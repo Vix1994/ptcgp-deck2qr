@@ -10,7 +10,7 @@ import pytest
 from ptcgp_deck2qr.carddb import load_database
 from ptcgp_deck2qr.carddb.errors import IndexSourceMismatch
 from ptcgp_deck2qr.detection import BoundingBox, CountObservation, DetectedRegion, DetectionResult
-from ptcgp_deck2qr.matching import MatchCandidate, MatchResult
+from ptcgp_deck2qr.matching import MatchCandidate, MatchPolicy, MatchResult
 from ptcgp_deck2qr.pipeline import (
     RecognitionCard,
     RecognitionResult,
@@ -115,9 +115,48 @@ def test_pipeline_rejects_wrong_total_but_keeps_diagnostics(tmp_path: Path) -> N
         style="separate-cards",
     )
     assert not result.accepted
+    assert result.draft_deck is None
     assert not (tmp_path / "output" / "deck.txt").exists()
     assert (tmp_path / "output" / "deck.partial.txt").exists()
     assert (tmp_path / "output" / "recognized.png").exists()
+
+
+def test_pipeline_builds_twenty_card_draft_from_ambiguous_top_candidates(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    database = make_database(tmp_path, count=10)
+    image = tmp_path / "deck.png"
+    make_screenshot(image, card_count=10)
+    strict_policy = MatchPolicy("test-reject-all", min_score=1.1, min_entity_margin=1.1)
+    monkeypatch.setattr(
+        "ptcgp_deck2qr.pipeline.policy_for_style",
+        lambda _style: strict_policy,
+    )
+
+    result = recognize_image(
+        image,
+        energy="lightning",
+        database_path=database,
+        output_dir=tmp_path / "output",
+        style="separate-cards",
+    )
+
+    assert not result.accepted
+    assert result.draft_deck is not None and result.draft_deck.total_count == 20
+    assert result.deck is None
+    assert "match-ambiguous-entity" in result.errors
+    assert not (tmp_path / "output" / "deck.txt").exists()
+    partial = (tmp_path / "output" / "deck.partial.txt").read_text(encoding="utf-8")
+    assert sum(line.startswith("2 Synthetic Card ") for line in partial.splitlines()) == 10
+    report = json.loads((tmp_path / "output" / "recognition.json").read_text(encoding="utf-8"))
+    assert report["validation"] == {
+        "accepted": False,
+        "card_count": 20,
+        "draft_qr_available": True,
+        "errors": ["match-ambiguous-entity"],
+        "reliable_card_count": 0,
+        "uncertain_entity_count": 20,
+    }
 
 
 def test_pipeline_cleans_only_known_stale_outputs_before_failure(tmp_path: Path) -> None:

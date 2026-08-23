@@ -303,10 +303,12 @@ select { width: 100%; height: 46px; padding: 0 38px 0 13px; appearance: none; bo
 .qr-output { margin: 14px 20px 0; overflow: hidden; border: 1px solid var(--line); border-radius: 13px; background: #fbfdfe; }
 .qr-output[data-status="ready"] { border-color: #a7d8b2; background: #fbfffc; }
 .qr-output[data-status="error"] { border-color: #efb5ae; background: var(--danger-soft); }
+.qr-output[data-draft="true"] { border-color: color-mix(in srgb, var(--warning), white 45%); background: var(--warning-soft); }
 .qr-output-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 48px; padding: 10px 13px; border-bottom: 1px solid var(--line); }
 .qr-output-heading strong { font-size: 14px; }
 .qr-output-heading > span { padding: 4px 8px; border-radius: 999px; color: var(--cyan-dark); background: var(--cyan-soft); font-size: 10px; font-weight: 700; }
 .qr-output[data-status="ready"] .qr-output-heading > span { color: var(--success); background: var(--success-soft); }
+.qr-output[data-draft="true"] .qr-output-heading > span { color: color-mix(in srgb, var(--warning), black 35%); background: color-mix(in srgb, var(--warning-soft), var(--warning) 18%); }
 .qr-ready { display: grid; grid-template-columns: 128px minmax(0, 1fr); align-items: center; gap: 14px; padding: 13px; }
 .qr-ready img { display: block; width: 128px; height: 128px; border: 6px solid #fff; border-radius: 8px; background: #fff; box-shadow: 0 5px 15px rgba(42,90,112,.13); }
 .qr-copy { display: grid; gap: 8px; min-width: 0; }

@@ -4,7 +4,7 @@ from pathlib import Path
 
 from pytest import MonkeyPatch
 
-from ptcgp_deck2qr.cli import main
+from ptcgp_deck2qr.cli import build_parser, main
 from ptcgp_deck2qr.gui import GuiConfig
 
 from .helpers import make_database, make_screenshot
@@ -95,3 +95,16 @@ def test_cli_launches_gui_with_runtime_paths(tmp_path: Path, monkeypatch: Monkey
     assert config.output_dir == output
     assert config.port == 9001
     assert browser_flags == [False]
+
+
+def test_gui_uses_existing_documented_index_by_default(
+    tmp_path: Path, monkeypatch: MonkeyPatch
+) -> None:
+    index = tmp_path / "data" / "index" / "fingerprint.json"
+    index.parent.mkdir(parents=True)
+    index.write_text("{}", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    args = build_parser().parse_args(["gui", "--database-path", str(tmp_path / "database")])
+
+    assert args.index_path == Path("data/index/fingerprint.json")

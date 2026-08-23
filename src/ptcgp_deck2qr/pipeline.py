@@ -58,6 +58,26 @@ class RecognitionResult:
     cards: tuple[RecognitionCard, ...]
     errors: tuple[str, ...]
     deck: Deck | None = None
+    draft_deck: Deck | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class RecognitionRuntime:
+    """Validated database and visual index reusable across recognition jobs."""
+
+    database: CardDatabase
+    index: FingerprintIndex
+
+
+def load_recognition_runtime(
+    database_path: str | Path,
+    *,
+    index_path: str | Path | None = None,
+) -> RecognitionRuntime:
+    """Load the immutable recognition resources once for a long-lived adapter."""
+
+    database = load_database(database_path)
+    return RecognitionRuntime(database=database, index=_get_index(index_path, database))
 
 
 def recognize_image(
@@ -68,6 +88,7 @@ def recognize_image(
     output_dir: str | Path,
     style: StyleName = "auto",
     index_path: str | Path | None = None,
+    runtime: RecognitionRuntime | None = None,
 ) -> RecognitionResult:
     """Recognize one screenshot and emit diagnostic artifacts.
 
@@ -81,7 +102,15 @@ def recognize_image(
     destination.mkdir(parents=True, exist_ok=True)
     _clear_known_outputs(destination)
     energies = _parse_energy(energy)
-    database = load_database(database_path)
+    if runtime is None:
+        database = load_database(database_path)
+    else:
+        database = runtime.database
+        requested_root = Path(database_path).expanduser().resolve()
+        if database.root != requested_root:
+            raise ValueError(
+                f"recognition runtime database {database.root} does not match {requested_root}"
+            )
     image = cv2.imread(str(source), cv2.IMREAD_COLOR)
     if image is None:
         detection = DetectionResult(style, 0.0, (), ("input-image-unreadable",))
@@ -91,7 +120,7 @@ def recognize_image(
 
     # Reading the input before constructing the full visual index avoids a
     # multi-second database/image pass for an invalid path or unreadable file.
-    index = _get_index(index_path, database)
+    index = runtime.index if runtime is not None else _get_index(index_path, database)
 
     detection = detect_regions(image, style)
     cards: list[RecognitionCard] = []
@@ -105,6 +134,12 @@ def recognize_image(
     result, deck = _make_result(source, destination, detection, tuple(cards), energies, database)
     if deck is not None and result.accepted:
         write_deck_file(deck, destination / "deck.txt", release_order=database.release_order)
+    elif result.draft_deck is not None:
+        write_deck_file(
+            result.draft_deck,
+            destination / "deck.partial.txt",
+            release_order=database.release_order,
+        )
     elif deck is not None:
         write_deck_file(
             deck, destination / "deck.partial.txt", release_order=database.release_order
@@ -221,16 +256,26 @@ def _make_result(
     if any(card.count.count not in (1, 2) for card in cards):
         errors.append("count-ambiguous")
     deck = _build_deck(cards, energies, database, source.stem)
-    if deck is None and cards:
+    draft_deck = _build_entity_draft(cards, energies, database, source.stem, detection)
+    if deck is None and cards and draft_deck is None:
         errors.append("card-aggregation-failed")
     if deck is not None:
         try:
             validate_deck(deck, resolver=database)
         except DeckValidationError as exc:
-            errors.append(str(exc))
+            if draft_deck is None:
+                errors.append(str(exc))
     accepted = not errors and deck is not None
+    if accepted:
+        draft_deck = None
     return RecognitionResult(
-        accepted, destination, detection, cards, tuple(dict.fromkeys(errors)), deck
+        accepted,
+        destination,
+        detection,
+        cards,
+        tuple(dict.fromkeys(errors)),
+        deck,
+        draft_deck,
     ), deck
 
 
@@ -239,10 +284,17 @@ def _build_deck(
     energies: tuple[str, ...],
     database: CardDatabase,
     name: str,
+    *,
+    allow_ambiguous_entities: bool = False,
 ) -> Deck | None:
     grouped: dict[tuple[str, int], DeckCard] = {}
     for card in cards:
-        if not card.accepted or card.match.selected is None or card.count.count is None:
+        if (
+            card.region.is_grid_inferred
+            or card.match.selected is None
+            or card.count.count not in (1, 2)
+            or (not allow_ambiguous_entities and not card.match.accepted)
+        ):
             continue
         selected = card.match.selected
         print = _canonical_print(selected.print_ids, database)
@@ -270,6 +322,42 @@ def _build_deck(
     pokemon = tuple(card for card in grouped.values() if card.section == "pokemon")
     trainer = tuple(card for card in grouped.values() if card.section == "trainer")
     return Deck(energies=energies, pokemon=pokemon, trainer=trainer, name=name)
+
+
+def _build_entity_draft(
+    cards: tuple[RecognitionCard, ...],
+    energies: tuple[str, ...],
+    database: CardDatabase,
+    name: str,
+    detection: DetectionResult,
+) -> Deck | None:
+    """Build a 20-card draft only when entity confidence is the sole uncertainty."""
+
+    slot_ids = [card.region.slot_id for card in cards]
+    if (
+        detection.errors
+        or not cards
+        or len(slot_ids) != len(set(slot_ids))
+        or any(card.region.is_grid_inferred for card in cards)
+        or any(card.count.count not in (1, 2) for card in cards)
+        or any(card.match.selected is None for card in cards)
+        or all(card.match.accepted for card in cards)
+    ):
+        return None
+    draft = _build_deck(
+        cards,
+        energies,
+        database,
+        name,
+        allow_ambiguous_entities=True,
+    )
+    if draft is None:
+        return None
+    try:
+        validate_deck(draft, resolver=database)
+    except DeckValidationError:
+        return None
+    return draft
 
 
 def _canonical_print(print_ids: tuple[str, ...], database: CardDatabase) -> CardPrint | None:
@@ -329,7 +417,16 @@ def _write_diagnostics(
         "validation": {
             "accepted": result.accepted,
             "errors": list(result.errors),
-            "card_count": result.deck.total_count if result.deck is not None else 0,
+            "card_count": (
+                result.draft_deck.total_count
+                if result.draft_deck is not None
+                else result.deck.total_count
+                if result.deck is not None
+                else 0
+            ),
+            "reliable_card_count": result.deck.total_count if result.deck is not None else 0,
+            "draft_qr_available": result.draft_deck is not None,
+            "uncertain_entity_count": sum(not card.match.accepted for card in result.cards),
         },
     }
     (result.output_dir / "recognition.json").write_text(

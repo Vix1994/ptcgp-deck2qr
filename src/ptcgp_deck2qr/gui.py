@@ -7,7 +7,7 @@ import binascii
 import json
 import threading
 import webbrowser
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -17,10 +17,9 @@ from tempfile import TemporaryDirectory
 from typing import Any, cast
 from urllib.parse import urlparse
 
-from .carddb import load_database
 from .decktext import ALLOWED_ENERGIES
 from .detection import StyleName
-from .pipeline import recognize_image
+from .pipeline import RecognitionRuntime, load_recognition_runtime, recognize_image
 from .qr import QrInputError, build_qr_input
 
 MAX_REQUEST_BYTES = 36 * 1024 * 1024
@@ -68,7 +67,18 @@ class GuiServer(ThreadingHTTPServer):
     def __init__(self, config: GuiConfig) -> None:
         self.config = config
         self.recognition_lock = threading.Lock()
+        self._recognition_runtime: RecognitionRuntime | None = None
         super().__init__((config.host, config.port), GuiRequestHandler)
+
+    def get_recognition_runtime(self) -> RecognitionRuntime:
+        """Lazily load and then reuse the immutable database and index."""
+
+        if self._recognition_runtime is None:
+            self._recognition_runtime = load_recognition_runtime(
+                self.config.database_path,
+                index_path=self.config.index_path,
+            )
+        return self._recognition_runtime
 
 
 class GuiRequestHandler(BaseHTTPRequestHandler):
@@ -114,7 +124,11 @@ class GuiRequestHandler(BaseHTTPRequestHandler):
             if not self.server.recognition_lock.acquire(blocking=False):
                 raise GuiRequestError("recognition is already running", HTTPStatus.CONFLICT)
             try:
-                response = recognize_payload(payload, self.server.config)
+                response = recognize_payload(
+                    payload,
+                    self.server.config,
+                    runtime_provider=self.server.get_recognition_runtime,
+                )
             finally:
                 self.server.recognition_lock.release()
         except GuiRequestError as exc:
@@ -196,13 +210,23 @@ def config_payload(config: GuiConfig) -> dict[str, object]:
     }
 
 
-def recognize_payload(payload: Mapping[str, Any], config: GuiConfig) -> dict[str, object]:
+def recognize_payload(
+    payload: Mapping[str, Any],
+    config: GuiConfig,
+    *,
+    runtime_provider: Callable[[], RecognitionRuntime] | None = None,
+) -> dict[str, object]:
     """Validate one browser request, run the existing pipeline, and shape its response."""
 
     filename, image_bytes = _decode_image(payload)
     energies = _decode_energies(payload)
     style = _decode_style(payload)
     config.output_dir.mkdir(parents=True, exist_ok=True)
+    runtime = (
+        runtime_provider()
+        if runtime_provider is not None
+        else load_recognition_runtime(config.database_path, index_path=config.index_path)
+    )
     suffix = Path(filename).suffix.lower()
     with TemporaryDirectory(prefix="ptcgp-deck2qr-gui-") as temporary:
         image_path = Path(temporary) / f"input{suffix}"
@@ -214,6 +238,7 @@ def recognize_payload(payload: Mapping[str, Any], config: GuiConfig) -> dict[str
             output_dir=config.output_dir,
             style=style,
             index_path=config.index_path,
+            runtime=runtime,
         )
 
     report_path = config.output_dir / "recognition.json"
@@ -229,9 +254,11 @@ def recognize_payload(payload: Mapping[str, Any], config: GuiConfig) -> dict[str
     deck_text = deck_path.read_text(encoding="utf-8") if deck_path.is_file() else None
     qr_input: dict[str, object] | None = None
     qr_error: str | None = None
-    if result.accepted and result.deck is not None:
+    qr_deck = result.deck if result.accepted else result.draft_deck
+    qr_is_draft = not result.accepted and result.draft_deck is not None
+    if qr_deck is not None:
         try:
-            qr_input = build_qr_input(result.deck, load_database(config.database_path)).to_dict()
+            qr_input = build_qr_input(qr_deck, runtime.database).to_dict()
         except QrInputError as exc:
             qr_error = str(exc)
     validation = report.get("validation")
@@ -248,6 +275,8 @@ def recognize_payload(payload: Mapping[str, Any], config: GuiConfig) -> dict[str
         "deck_text": deck_text,
         "qr_input": qr_input,
         "qr_error": qr_error,
+        "qr_is_draft": qr_is_draft,
+        "uncertain_entity_count": validation_dict.get("uncertain_entity_count", 0),
         "artifacts": artifacts,
         "output_dir": str(config.output_dir),
     }
