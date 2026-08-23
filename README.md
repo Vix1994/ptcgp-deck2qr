@@ -96,6 +96,27 @@ the screenshot style, runs recognition, and shows or downloads the existing outp
 deck editing, history, accounts, or cloud upload. Use the `中 / EN` control in the top bar to switch
 the complete interface language; the choice is remembered locally.
 
+### QR algorithm and data provenance
+
+The QR path combines three independently attributable pieces:
+
+- Deck-share payload encoding uses the pinned
+  [`ptcgp-deckcode` 2.0.0](https://github.com/Nirostar/ptcgp-deck-qr/tree/master/packages/deckcode),
+  a community reverse-engineering of the game's share format. It is not an official Pokémon API or
+  protocol specification.
+- QR matrix generation and PNG rendering use
+  [`qrcode` 1.5.4](https://www.npmjs.com/package/qrcode), an MIT-licensed transitive dependency of
+  `ptcgp-deckcode`.
+- Card print IDs are mapped to the game's internal deck-builder number from the `image` field supplied
+  by [`flibustier/pokemon-tcg-pocket-database`](https://github.com/flibustier/pokemon-tcg-pocket-database).
+
+The GUI reads the database release explicitly selected with `--database-path`; it does not download a
+floating database version through the encoder. The independent Game8 userscript instead bundles a
+compact, source-hashed mapping generated from database version `2.9.1`. Neither path vendors the
+complete upstream `cards.json` or official card artwork. See the
+[card database contract](docs/card-database-contract.md) and
+[third-party notices](THIRD_PARTY_NOTICES.md) for the exact boundary, source details, and licenses.
+
 React and Vite are development dependencies only. Rebuild the packaged static assets after changing
 `frontend/`:
 
