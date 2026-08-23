@@ -11,14 +11,14 @@
 项目分为两个相互独立的阶段：
 
 ```text
-阶段一（本 PRD 的 Demo）
+阶段一（识别与标准化）
 卡组截图
   ↓
 卡牌检测、识别和数量解析
   ↓
 标准卡组文本 deck.txt
 
-阶段二（后续）
+阶段二（本地 GUI 已接入）
 标准卡组文本 deck.txt
   ↓
 格式解析、Card ID 映射和 Deck Code 编码
@@ -26,7 +26,7 @@
 可由游戏扫描的 QR Code
 ```
 
-当前 Demo 只实现阶段一，不生成 QR Code。阶段一的核心交付物不是某种内部 JSON，而是一份稳定、可人工阅读、可编辑、可被后续程序解析的标准卡组文本。
+当前本地 GUI 在阶段一识别完全通过后继续执行阶段二。标准卡组文本仍是两个阶段之间的稳定边界；二维码不得直接消费截图识别内部数据。
 
 ## 2. 背景与问题
 
@@ -51,7 +51,7 @@
 
 当前 Demo 的目标是：
 
-> 输入一张完整卡组截图和用户指定的能量类型，自动识别卡组，并输出符合 Deck Text Format v1 的 `deck.txt`。
+> 输入一张完整卡组截图和用户指定的能量类型，自动识别卡组，输出符合 Deck Text Format v1 的 `deck.txt`，并在识别完整通过后由本地 GUI 自动生成卡组二维码。
 
 示例命令：
 
@@ -68,6 +68,9 @@ output/
 └── recognized.png
 ```
 
+本地 GUI 还会在浏览器内显示二维码，并提供 PNG 下载和 Deck Code 复制；二维码不是 CLI
+识别命令写入 `output/` 的固定文件。
+
 其中：
 
 - `deck.txt`：标准化卡组文本，是 Demo 的主要结果。
@@ -78,10 +81,8 @@ output/
 
 当前 Demo 不实现：
 
-- QR Code 生成。
-- PTCGP Deck Code 编码。
 - QR Code 解码。
-- GUI 或 Web UI。
+- 云端托管的 GUI 或 Web 服务。
 - 云端服务和用户系统。
 - 任意实拍、倾斜或严重透视的实体卡牌照片。
 - 用户收藏统计。
@@ -149,7 +150,7 @@ energy: <energy>[, <energy>...]
 - `name` 可选；无法从截图可靠识别时使用输入文件名。
 - `energy` 在当前 Demo 中由用户参数提供。
 - 允许 1–3 种能量。
-- 顺序必须保留，供未来 QR 编码使用。
+- 顺序必须保留，供 QR 编码使用。
 - 第一版正常接受：`grass`、`fire`、`water`、`lightning`、`psychic`、`fighting`、`darkness`、`metal`。
 
 卡牌分区：
@@ -573,6 +574,20 @@ ptcgp-deck2qr build-index
 5  数据库或索引错误
 ```
 
+### 15.1 可选本地 GUI
+
+Demo 可以提供 `ptcgp-deck2qr gui` 作为 CLI 的本地操作界面。GUI 只覆盖当前已有能力：
+
+- 选择一张截图。
+- 显式选择 1–3 种能量。
+- 可选覆盖截图样式。
+- 启动识别并查看原图、标注图和失败原因。
+- 复制或下载成功的 `deck.txt`，或查看失败诊断。
+
+GUI 不增加卡组历史、收藏、商店、社区、账号、云端同步或卡牌编辑功能。
+识别通过后，GUI 自动从已验证 Deck 生成 Deck Code 和二维码；识别失败时不得生成。
+它必须调用同一 Python 识别管线，不得在前端复制识别和验证规则。
+
 ## 16. 技术方案约束
 
 推荐运行依赖：
@@ -582,7 +597,7 @@ Python 3.11+
 numpy
 Pillow
 opencv-python-headless
-qrcode（阶段二再启用）
+ptcgp-deckcode（React 构建时固定版本，运行时不联网）
 ```
 
 如果局部数字识别需要 Tesseract，必须作为可选依赖；优先实现只支持 `1`、`2` 的模板识别，避免给 Demo 增加系统级 OCR 安装要求。
@@ -630,9 +645,9 @@ src/ptcgp_deck2qr/
     report.py
 ```
 
-`decktext` 必须独立于图片识别。未来 QR 模块只能依赖 `decktext` 和 `carddb`，不能依赖 OpenCV 或截图对象。
+`decktext` 必须独立于图片识别。QR 模块只能依赖已验证的 Deck model 和 `carddb`，不能依赖 OpenCV 或截图对象。
 
-未来阶段的边界：
+当前 QR 阶段的边界：
 
 ```text
 deck.txt
@@ -705,11 +720,11 @@ deck-qr.png
 - 生成 `deck.txt`、`recognition.json`、`recognized.png`。
 - 对四张样本做回归测试。
 
-### 后续 Milestone：QR
+### Milestone 6：QR
 
-- 独立实现 `deck.txt → Deck model → payload → QR`。
-- 使用现有开源项目的 golden payload 交叉验证。
-- 增加真机扫描验收。
+- 已独立实现 `validated Deck → QR input → Deck Code → QR`。
+- 已用编码后再解析的 round-trip 测试验证 payload 结构。
+- 待增加真机扫描验收。
 
 ## 20. 开放问题
 
@@ -728,7 +743,7 @@ deck-qr.png
 
 ```text
 输入：一张卡组截图 + 用户指定能量
-输出：标准 deck.txt + 可验证的识别调试结果
+输出：标准 deck.txt + 可验证的识别调试结果 + 通过本地 GUI 自动生成的 QR Code
 ```
 
-QR Code 不属于当前 Demo。先把 Deck Text Format v1 和图片到标准文本的转换做好，后续 QR 模块只消费标准文本，从而避免 QR 协议变化反向污染图片识别模块。
+QR Code 只在当前 Demo 的识别结果完整通过后生成。QR 模块只消费已验证 Deck 和数据库映射，从而避免 QR 协议变化反向污染图片识别模块。

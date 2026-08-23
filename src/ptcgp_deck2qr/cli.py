@@ -43,6 +43,19 @@ def build_parser() -> argparse.ArgumentParser:
         help="external ptcgp-database/dist path (or PTCGP_DATABASE_PATH)",
     )
     build.add_argument("--output", type=Path, default=Path("data/index/fingerprint.json"))
+
+    gui = commands.add_parser("gui", help="launch the local browser GUI")
+    gui.add_argument(
+        "--database-path",
+        type=Path,
+        default=_database_from_environment(),
+        help="external ptcgp-database/dist path (or PTCGP_DATABASE_PATH)",
+    )
+    gui.add_argument("--output-dir", "--output", type=Path, default=Path("output"))
+    gui.add_argument("--index-path", type=Path)
+    gui.add_argument("--host", default="127.0.0.1")
+    gui.add_argument("--port", type=int, default=8765)
+    gui.add_argument("--no-open", action="store_true", help="do not open a browser automatically")
     return parser
 
 
@@ -57,6 +70,22 @@ def main(argv: Sequence[str] | None = None) -> int:
             index = build_fingerprint_index(database)
             save_fingerprint_index(index, args.output)
             print(f"built {len(index.entries)} visual fingerprints at {args.output}")
+            return 0
+        if args.command == "gui":
+            if args.database_path is None:
+                parser.error("--database-path or PTCGP_DATABASE_PATH is required")
+            from .gui import GuiConfig, run_gui
+
+            run_gui(
+                GuiConfig(
+                    database_path=args.database_path,
+                    output_dir=args.output_dir,
+                    index_path=args.index_path,
+                    host=args.host,
+                    port=args.port,
+                ),
+                open_browser=not args.no_open,
+            )
             return 0
         if args.database_path is None:
             parser.error("--database-path or PTCGP_DATABASE_PATH is required")

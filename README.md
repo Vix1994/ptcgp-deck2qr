@@ -2,7 +2,7 @@
 
 Convert a Pokémon TCG Pocket deck screenshot into a canonical, human-editable deck text file.
 
-> Status: pre-alpha recognition MVP. QR generation is intentionally deferred.
+> Status: pre-alpha local screenshot-to-Deck-Text-and-QR MVP.
 
 ## Optional Game8 userscript
 
@@ -28,9 +28,11 @@ deck screenshot + explicit energy selection
   -> card/entity/count recognition
   -> validated Deck model
   -> canonical deck.txt
+  -> local Deck Code + QR
 ```
 
-QR encoding is a later, independent stage. This keeps image recognition testable without coupling it to a reverse-engineered game payload.
+QR encoding remains an independent downstream stage. This keeps image recognition testable without
+coupling it to a reverse-engineered game payload.
 
 ## Recognition CLI
 
@@ -63,6 +65,33 @@ Low-confidence entity or count decisions fail closed: diagnostics are still
 written, but a successful `deck.txt` is not emitted. Use `--style` to override
 automatic layout classification when a screenshot is ambiguous.
 
+## Local GUI
+
+Launch the optional React interface around the same recognition pipeline:
+
+```powershell
+.\.venv\Scripts\ptcgp-deck2qr.exe gui `
+  --database-path H:\CodexCode\ptcgp-database\dist `
+  --index-path data\index\fingerprint.json `
+  --output-dir output
+```
+
+The browser opens on `127.0.0.1`. Select, drag, or paste a clipboard image with `Ctrl+V`; then choose
+energy and run recognition. After a validated 20-card result, the GUI automatically generates a QR
+and offers PNG download and Deck Code copy. The GUI optionally overrides
+the screenshot style, runs recognition, and shows or downloads the existing outputs. It does not add
+deck editing, history, accounts, or cloud upload. Use the `中 / EN` control in the top bar to switch
+the complete interface language; the choice is remembered locally.
+
+React and Vite are development dependencies only. Rebuild the packaged static assets after changing
+`frontend/`:
+
+```powershell
+cd frontend
+npm install
+npm run build
+```
+
 The canonical format is specified in [Deck Text Format v1](docs/deck-text-format-v1.md).
 
 ## Documentation
@@ -76,6 +105,7 @@ The canonical format is specified in [Deck Text Format v1](docs/deck-text-format
 - [Data and licensing](docs/data-and-licensing.md)
 - [Contributing](CONTRIBUTING.md)
 - [Architecture decisions](docs/decisions/)
+- [GUI visual reference specification](docs/brand-spec.md)
 - [Game8 userscript](userscript/README.md)
 - [Third-party notices](THIRD_PARTY_NOTICES.md)
 

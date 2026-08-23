@@ -2,7 +2,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from pytest import MonkeyPatch
+
 from ptcgp_deck2qr.cli import main
+from ptcgp_deck2qr.gui import GuiConfig
 
 from .helpers import make_database, make_screenshot
 
@@ -59,3 +62,36 @@ def test_cli_reports_missing_explicit_index(tmp_path: Path) -> None:
         ]
     )
     assert code == 5
+
+
+def test_cli_launches_gui_with_runtime_paths(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+    captured_config: list[GuiConfig] = []
+    browser_flags: list[bool] = []
+
+    def fake_run_gui(config: GuiConfig, *, open_browser: bool) -> None:
+        captured_config.append(config)
+        browser_flags.append(open_browser)
+
+    monkeypatch.setattr("ptcgp_deck2qr.gui.run_gui", fake_run_gui)
+    database = tmp_path / "database"
+    output = tmp_path / "result"
+    assert (
+        main(
+            [
+                "gui",
+                "--database-path",
+                str(database),
+                "--output-dir",
+                str(output),
+                "--port",
+                "9001",
+                "--no-open",
+            ]
+        )
+        == 0
+    )
+    config = captured_config[0]
+    assert config.database_path == database
+    assert config.output_dir == output
+    assert config.port == 9001
+    assert browser_flags == [False]

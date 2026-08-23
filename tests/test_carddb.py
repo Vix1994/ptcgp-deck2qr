@@ -30,7 +30,7 @@ def test_database_loader_normalizes_print_visual_entity(tmp_path: Path) -> None:
     assert len(database.prints) == 4
     assert len(database.visuals) == 4
     assert database.prints[0].print_id == "A1-001"
-    assert database.prints[0].entity.code == "PK:1"
+    assert database.prints[0].entity.code == "PK:10"
     assert database.prints[0].key == CardPrintKey("A1", 1)
     assert database.resolve_print("A1", 2) is not None
     assert database.resolve_print("A9", 1) is None

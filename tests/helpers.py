@@ -23,7 +23,7 @@ def make_database(root: Path, *, count: int = 10) -> Path:
         is_pokemon = number <= max(1, count // 2)
         prefix = "cPK" if is_pokemon else "cTR"
         entity = number if is_pokemon else number + 100
-        image_name = f"{prefix}_10_{entity:06d}_00_SYNTH_{number}_C.webp"
+        image_name = f"{prefix}_10_{entity * 10:06d}_00_SYNTH_{number}_C.webp"
         image = synthetic_card(number)
         cv2.imwrite(str(image_root / f"{number}.webp"), image)
         cards.append(

@@ -17,3 +17,5 @@ Accepted records:
 - [0003: Game8 userscript as an independent web adapter](0003-game8-userscript-as-independent-web-adapter.md)
 - [0004: Distribute the userscript through GitHub Raw](0004-distribute-the-userscript-through-github-raw.md)
 - [0005: Split the userscript release into pinned modules](0005-split-the-userscript-release-into-pinned-modules.md)
+- [0006: Local React GUI as a presentation layer](0006-local-react-gui-as-presentation-layer.md)
+- [0007: Generate QR only from a validated Deck](0007-generate-qr-only-from-validated-deck.md)

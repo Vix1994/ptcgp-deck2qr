@@ -39,7 +39,13 @@ dev = [
 where = ["src"]
 
 [tool.setuptools.package-data]
-ptcgp_deck2qr = ["py.typed"]
+ptcgp_deck2qr = [
+  "py.typed",
+  "webgui/*.html",
+  "webgui/*.css",
+  "webgui/*.js",
+  "webgui/assets/*.png",
+]
 
 [tool.ruff]
 target-version = "py311"

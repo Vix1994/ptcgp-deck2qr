@@ -2,7 +2,7 @@
 
 ## Architectural objective
 
-Keep image recognition, the canonical Deck model, and future QR encoding independently testable.
+Keep image recognition, the canonical Deck model, and downstream QR encoding independently testable.
 
 ```text
 Screenshot + explicit energy
@@ -20,16 +20,28 @@ Region proposals -> slot resolution -> style/count extraction -> visual matcher
                          |
                          v
                       deck.txt
+                         |
+                         v
+                 QR input adapter
+                         |
+                         v
+              Deck Code -> QR renderer
+```
 
-Future only:
-deck.txt -> Deck model -> QR payload encoder -> QR renderer
+The optional local GUI is a presentation adapter around the same pipeline:
+
+```text
+React UI -> local Python HTTP adapter -> pipeline.recognize_image
+                                           |
+                                           +-> deck.txt + diagnostics
+                                           +-> validated QR input -> browser Deck Code + QR
 ```
 
 ## Module boundaries
 
 ### `decktext`
 
-Owns the Deck model, syntax, parser, canonical writer, and deck validation. It must not import OpenCV, Pillow, NumPy, screenshot types, or future QR code.
+Owns the Deck model, syntax, parser, canonical writer, and deck validation. It must not import OpenCV, Pillow, NumPy, screenshot types, or QR code libraries.
 
 ### `carddb`
 
@@ -67,13 +79,22 @@ Builds fingerprints from unique visual assets, retrieves candidates, reranks the
 
 Coordinates the modules, aggregates accepted observations, validates the Deck, and writes output artifacts. It owns no recognition algorithm.
 
+### `gui` and `webgui`
+
+`gui` serves the compiled React application, adapts one local request into the existing pipeline call,
+and exposes QR input only for an accepted Deck. `webgui` contains generated static build artifacts.
+Neither layer owns recognition, Deck validation, or canonical writing. The editable frontend source
+lives under `frontend/`; it delegates the Deck Code format and QR rendering to the pinned
+`ptcgp-deckcode` package.
+
 ### `debug`
 
 Renders `recognized.png` and serializes `recognition.json`. Diagnostic serialization must not be reused as the canonical Deck Text format.
 
-### Future `qr`
+### `qr`
 
-Consumes only a validated Deck model. It must not import detection or matching code.
+Consumes only a validated Deck model and the active card database. It resolves print identities for
+the pinned browser Deck Code encoder. It must not import detection or matching code.
 
 ## Dependency direction
 
@@ -84,10 +105,12 @@ pipeline -> detection
 pipeline -> matching
 pipeline -> carddb
 pipeline -> decktext
+gui -> pipeline
 detection -> shared low-level image types
 matching -> carddb identities
 debug -> recognition result DTOs
-future qr -> decktext Deck model
+qr -> decktext Deck model
+qr -> carddb
 ```
 
 Forbidden examples:
@@ -97,6 +120,7 @@ Forbidden examples:
 - `qr` reading screenshot crops.
 - `carddb` downloading data implicitly during recognition.
 - Core code depending on a hard-coded local database path.
+- React code reproducing recognition, validation, or Deck Text rules.
 
 ## Data and determinism
 
