@@ -104,6 +104,70 @@ def test_badge_grid_uses_global_columns_and_infers_one_supported_gap() -> None:
     ]
 
 
+def test_separate_card_grid_proposes_one_supported_missing_contour() -> None:
+    proposals = tuple(
+        _proposal(
+            f"r{row}c{column}",
+            BoundingBox(column * 140, row * 200, 120, 170),
+        )
+        for row in range(4)
+        for column in range(5)
+        if not (row == 1 and column == 2)
+    )
+
+    result = SlotResolver("separate-cards").resolve(proposals)
+
+    assert len(result.slots) == 20
+    recovered = [slot for slot in result.slots if slot.is_grid_inferred]
+    assert len(recovered) == 1
+    assert recovered[0].slot_id == "r02c03"
+    assert recovered[0].bbox == BoundingBox(280, 200, 120, 170)
+    assert recovered[0].proposals == ()
+
+
+def test_separate_card_grid_proposes_a_supported_edge_gap() -> None:
+    proposals = tuple(
+        _proposal(
+            f"r{row}c{column}",
+            BoundingBox(column * 140, row * 200, 120, 170),
+        )
+        for row in range(4)
+        for column in range(5)
+        if not (row == 0 and column == 4)
+    )
+
+    result = SlotResolver("separate-cards").resolve(proposals)
+
+    recovered = [slot for slot in result.slots if slot.is_grid_inferred]
+    assert len(result.slots) == 20
+    assert len(recovered) == 1
+    assert recovered[0].slot_id == "r01c05"
+    assert recovered[0].bbox == BoundingBox(560, 0, 120, 170)
+
+
+def test_regular_grid_normalizes_one_distorted_direct_contour() -> None:
+    proposals = tuple(
+        _proposal(
+            f"r{row}c{column}",
+            BoundingBox(
+                column * 140,
+                row * 200 + (7 if (row, column) == (1, 0) else 0),
+                116 if (row, column) == (1, 0) else 120,
+                163 if (row, column) == (1, 0) else 170,
+            ),
+        )
+        for row in range(4)
+        for column in range(5)
+    )
+
+    result = SlotResolver("separate-cards").resolve(proposals)
+
+    target = next(slot for slot in result.slots if slot.slot_id == "r02c01")
+    assert target.bbox == BoundingBox(0, 200, 120, 170)
+    assert target.proposals[0].bbox == BoundingBox(0, 207, 116, 163)
+    assert "crop:grid-normalized" in target.resolution_reason
+
+
 def test_ragged_non_badge_layouts_do_not_infer_missing_slots() -> None:
     for style, width, height in (
         ("quantity-label", 200, 120),
@@ -123,8 +187,8 @@ def test_ragged_non_badge_layouts_do_not_infer_missing_slots() -> None:
         assert len(result.slots) == 12
         assert not any(slot.is_grid_inferred for slot in result.slots)
 
-    # Even for a badge-style image, two complete rows do not justify filling
-    # an edge-shortened ragged row: there is no interior gap evidence.
+    # A badge-style ragged edge is proposed geometrically, but it is not yet a
+    # card. The pipeline must discard it unless artwork independently matches.
     proposals = tuple(
         _proposal(
             f"badge-{row}-{column}",
@@ -135,5 +199,7 @@ def test_ragged_non_badge_layouts_do_not_infer_missing_slots() -> None:
         for column in range(columns)
     )
     result = SlotResolver("count-badge").resolve(proposals)
-    assert len(result.slots) == 14
-    assert not any(slot.is_grid_inferred for slot in result.slots)
+    inferred = [slot for slot in result.slots if slot.is_grid_inferred]
+    assert len(result.slots) == 15
+    assert len(inferred) == 1
+    assert inferred[0].slot_id == "r03c05"

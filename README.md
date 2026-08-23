@@ -65,6 +65,17 @@ Low-confidence entity or count decisions fail closed: diagnostics are still
 written, but a successful `deck.txt` is not emitted. Use `--style` to override
 automatic layout classification when a screenshot is ambiguous.
 
+Portrait card identity is matched from the illustration rather than the complete border/text crop.
+The grid supplies only an approximate card slot: nine shifted views recall candidates, then a wider
+search window aligns each candidate across five scales. The final score uses the six strongest cells
+of a 3×3 illustration grid plus ORB/RANSAC evidence for the closest candidates, so a small crop shift
+or a covered corner does not require a new pixel-coordinate exception. For regular portrait grids,
+one missing interior or edge contour can be recovered from
+neighboring row/column geometry. The recovered crop must still pass a stricter artwork-only entity
+match; grid position alone never invents a card, and blank or ambiguous cells are discarded.
+Regular multi-row card grids also normalize direct contour crops to the shared grid centers and
+dominant card size, preventing one shortened or shifted border from losing the slot entirely.
+
 ## Local GUI
 
 Launch the optional React interface around the same recognition pipeline:

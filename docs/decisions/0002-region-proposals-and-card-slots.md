@@ -28,9 +28,9 @@ image -> RegionProposal[] -> SlotResolver -> CardSlot[] -> matcher/count
 - `CardSlot` represents one physical card position. Only slots may enter matching and counting.
 - Proposal clustering is independent of Card ID and recognized quantity.
 - The pipeline treats duplicate slot IDs as a structural failure.
-- A strongly supported regular badge grid may yield an interior `grid-inferred` slot when a contour
-  is missing. It is retained for diagnostics but cannot contribute to a valid Deck without direct
-  recognition evidence.
+- A strongly supported regular grid may yield an interior `grid-inferred` slot when a contour is
+  missing. ADR 0009 defines how later artwork matching can supply direct recognition evidence; grid
+  geometry alone can never contribute a card to a valid Deck.
 - Debug output retains both proposals and resolved slots so every merge or inference is auditable.
 
 ## Consequences

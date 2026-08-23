@@ -10,6 +10,16 @@ The project follows Keep a Changelog structure. A public release versioning poli
 
 - Parse the live Game8 card-cell format where the image alt contains only the set and
   card number while the adjacent cell text contains the card name and quantity.
+- Recover one missing interior or edge contour in a strongly regular portrait grid when the predicted crop
+  independently passes strict artwork-only entity matching.
+- Match portrait screenshot cards by artwork ROI instead of allowing borders, language, or lower
+  rules text to determine entity identity.
+- Normalize regular multi-row portrait crops to shared grid centers and dominant card dimensions so
+  one shortened or shifted contour cannot misalign its artwork ROI.
+- Replace exact portrait artwork cropping with shifted hash recall, five-scale local alignment,
+  occlusion-tolerant 3×3 patch scoring, and leading-candidate ORB/RANSAC verification.
+- Limit expensive patch and feature verification to reranked candidates, reducing the supplied
+  20-card screenshot from about 6.0 seconds to 2.9 seconds cold / 1.7 seconds warm on the same runtime.
 
 ### Added
 

@@ -23,7 +23,9 @@ from .detection import (
     extract_count,
 )
 from .matching import (
+    GRID_RECOVERED_ARTWORK_POLICY,
     FingerprintIndex,
+    MatchPolicy,
     MatchResult,
     build_fingerprint_index,
     load_fingerprint_index,
@@ -42,12 +44,7 @@ class RecognitionCard:
 
     @property
     def accepted(self) -> bool:
-        # A lattice-inferred slot has no image evidence of its own.  It is
-        # useful for geometry/debugging, but cannot silently contribute a
-        # guessed card to a Deck Text result.
-        return (
-            not self.region.is_grid_inferred and self.match.accepted and self.count.count in (1, 2)
-        )
+        return self.match.accepted and self.count.count in (1, 2)
 
 
 @dataclass(frozen=True, slots=True)
@@ -127,8 +124,26 @@ def recognize_image(
     badge_shape = _estimate_badge_card_shape(detection.slots)
     for region in detection.slots:
         crop = _matching_crop(image, region, badge_shape=badge_shape)
-        artwork = detection.style == "quantity-label"
-        match = _match(crop, index, style=detection.style, artwork=artwork)
+        recovered = region.is_grid_inferred
+        artwork = detection.style == "quantity-label" or recovered
+        policy: MatchPolicy | None = None
+        if recovered:
+            policy = GRID_RECOVERED_ARTWORK_POLICY
+        elif artwork:
+            policy = policy_for_style(detection.style)
+        match = _match(
+            crop,
+            index,
+            style=detection.style,
+            policy=policy,
+        )
+        # A regular grid may propose an empty cell (for example, a ragged final
+        # row).  Geometry alone must not turn that cell into a card.  Retain the
+        # proposed slot in detection diagnostics, but only create a recognition
+        # observation when the recovered illustration supplies strict entity
+        # evidence of its own.
+        if recovered and not match.accepted:
+            continue
         count = extract_count(image, region, style=detection.style)
         cards.append(RecognitionCard(region, match, count))
     result, deck = _make_result(source, destination, detection, tuple(cards), energies, database)
@@ -173,11 +188,15 @@ def _match(
     index: FingerprintIndex,
     *,
     style: str,
-    artwork: bool,
+    policy: MatchPolicy | None = None,
 ) -> MatchResult:
-    from .matching import match_crop
+    from .matching import match_card_face, match_crop
 
-    return match_crop(crop, index, artwork=artwork, policy=policy_for_style(style))
+    if style == "quantity-label":
+        return match_crop(crop, index, artwork=True, policy=policy or policy_for_style(style))
+    if policy is not None:
+        return match_card_face(crop, index, policy=policy)
+    return match_card_face(crop, index)
 
 
 def _estimate_badge_card_shape(
@@ -247,8 +266,6 @@ def _make_result(
     slot_ids = [card.region.slot_id for card in cards]
     if len(slot_ids) != len(set(slot_ids)):
         errors.append("duplicate-slot-conflict")
-    if any(card.region.is_grid_inferred for card in cards):
-        errors.append("slot-evidence-missing")
     if not cards:
         errors.append("card-region-not-found")
     if any(not card.match.accepted for card in cards):
@@ -292,8 +309,7 @@ def _build_deck(
     grouped: dict[tuple[str, int], DeckCard] = {}
     for card in cards:
         if (
-            card.region.is_grid_inferred
-            or card.match.selected is None
+            card.match.selected is None
             or card.count.count not in (1, 2)
             or (not allow_ambiguous_entities and not card.match.accepted)
         ):
@@ -340,7 +356,6 @@ def _build_review_draft(
         detection.errors
         or not cards
         or len(slot_ids) != len(set(slot_ids))
-        or any(card.region.is_grid_inferred for card in cards)
         or any(card.count.count not in (1, 2) for card in cards)
         or any(card.match.selected is None for card in cards)
     ):
@@ -499,12 +514,22 @@ def _card_json(card: RecognitionCard, database: CardDatabase) -> dict[str, Any]:
         "print_candidates": list(selected.print_ids) if selected is not None else [],
         "visual_score": card.match.visual_score,
         "entity_margin": card.match.entity_margin,
+        "coarse_score": selected.coarse_score if selected is not None else 0.0,
+        "aligned_patch_score": (selected.aligned_patch_score if selected is not None else 0.0),
+        "visible_patch_count": selected.visible_patch_count if selected is not None else 0,
+        "orb_inliers": selected.orb_inliers if selected is not None else 0,
+        "orb_inlier_ratio": selected.orb_inlier_ratio if selected is not None else 0.0,
         "match_policy": card.match.policy.to_dict(),
         "reason": card.match.reason,
         "top_candidates": [
             {
                 "visual_id": candidate.visual_id,
                 "score": candidate.score,
+                "coarse_score": candidate.coarse_score,
+                "aligned_patch_score": candidate.aligned_patch_score,
+                "visible_patch_count": candidate.visible_patch_count,
+                "orb_inliers": candidate.orb_inliers,
+                "orb_inlier_ratio": candidate.orb_inlier_ratio,
                 "entity_type": candidate.entity_type,
                 "entity_id": candidate.entity_number,
                 "print_ids": list(candidate.print_ids),

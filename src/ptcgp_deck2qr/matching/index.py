@@ -23,6 +23,7 @@ class IndexEntry:
     entity_type: str
     entity_number: int
     print_ids: tuple[str, ...]
+    image_path: Path | None = None
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -58,6 +59,7 @@ def build_fingerprint_index(database: CardDatabase) -> FingerprintIndex:
                 entity_type=visual.entity.entity_type,
                 entity_number=visual.entity.number,
                 print_ids=visual.print_ids,
+                image_path=visual.image_path,
             )
         )
     manifest = dict(database.manifest.to_dict())
@@ -117,6 +119,7 @@ def load_fingerprint_index(path: str | Path, database: CardDatabase) -> Fingerpr
     entries_raw = raw.get("entries")
     if not isinstance(entries_raw, list):
         raise IndexSourceMismatch("fingerprint index entries must be an array")
+    database_visuals = {visual.visual_id: visual for visual in database.visuals}
     entries: list[IndexEntry] = []
     try:
         for item in entries_raw:
@@ -143,11 +146,15 @@ def load_fingerprint_index(path: str | Path, database: CardDatabase) -> Fingerpr
                     entity_type=entity_type,
                     entity_number=entity_number,
                     print_ids=tuple(print_ids_raw),
+                    image_path=(
+                        database_visuals[visual_id].image_path
+                        if visual_id in database_visuals
+                        else None
+                    ),
                 )
             )
     except (TypeError, ValueError) as exc:
         raise IndexSourceMismatch(f"invalid fingerprint index entry: {exc}") from exc
-    database_visuals = {visual.visual_id: visual for visual in database.visuals}
     entry_ids = [entry.visual_id for entry in entries]
     if len(entry_ids) != len(set(entry_ids)):
         raise IndexSourceMismatch("index contains duplicate visual IDs; rebuild the index")

@@ -63,9 +63,17 @@ class SlotResolver:
             return SlotResolution(())
         geometry = _dominant_geometry(ordered)
         clusters = self._cluster(ordered, geometry)
+        if self.style in ("separate-cards", "count-text"):
+            geometry = _resolved_geometry(clusters, geometry)
         rows = self._rows(clusters, geometry)
         column_anchors = _global_column_anchors(rows, geometry)
         row_anchors = tuple(_row_anchor(row, geometry) for row in rows)
+        normalize_grid = _should_normalize_grid(
+            self.style,
+            column_anchors,
+            row_anchors,
+            geometry,
+        )
         assignments: list[dict[int, _Cluster]] = []
         errors: list[str] = []
         for row_clusters in rows:
@@ -100,10 +108,19 @@ class SlotResolver:
                     continue
                 representative = _choose_representative(cluster.proposals, geometry)
                 members = tuple(sorted(cluster.proposals, key=_proposal_order))
+                bbox = (
+                    _grid_bbox(
+                        center_x=column_anchors[column],
+                        center_y=row_anchors[row_index],
+                        geometry=geometry,
+                    )
+                    if normalize_grid
+                    else representative.bbox
+                )
                 slots.append(
                     CardSlot(
                         index=len(slots) + 1,
-                        bbox=representative.bbox,
+                        bbox=bbox,
                         detection_score=representative.detection_score,
                         crop_quality=representative.crop_quality,
                         style=self.style,
@@ -115,7 +132,8 @@ class SlotResolver:
                             f"center-cluster:{len(members)};"
                             f"representative:{representative.proposal_id};"
                             f"global-grid:{round(column_anchors[column])},{round(row_anchors[row_index])};"
-                            f"dominant:{round(geometry.width)}x{round(geometry.height)}"
+                            f"dominant:{round(geometry.width)}x{round(geometry.height)};"
+                            f"crop:{'grid-normalized' if normalize_grid else 'proposal'}"
                         ),
                     )
                 )
@@ -231,6 +249,23 @@ def _regular_spacing(values: tuple[float, ...], scale: float) -> bool:
     return all(abs(gap - expected) <= max(scale * 0.45, expected * 0.35) for gap in gaps)
 
 
+def _should_normalize_grid(
+    style: StyleName,
+    column_anchors: tuple[float, ...],
+    row_anchors: tuple[float, ...],
+    geometry: _Geometry,
+) -> bool:
+    """Whether global anchors are strong enough to replace contour crop edges."""
+
+    return (
+        style in ("separate-cards", "count-text")
+        and len(column_anchors) >= 2
+        and len(row_anchors) >= 2
+        and _regular_spacing(column_anchors, geometry.width)
+        and _regular_spacing(row_anchors, geometry.height)
+    )
+
+
 def _grid_inferred_positions(
     style: StyleName,
     assignments: list[dict[int, _Cluster]],
@@ -238,9 +273,18 @@ def _grid_inferred_positions(
     row_anchors: tuple[float, ...],
     geometry: _Geometry,
 ) -> dict[tuple[int, int], int]:
-    """Return only strongly supported regular-grid gaps for badge layouts."""
+    """Return strongly supported gaps in regular portrait grids.
 
-    if style != "count-badge" or len(assignments) < 3 or len(column_anchors) < 3:
+    These are geometric crop candidates, not recognized cards.  The pipeline
+    must discard each candidate unless its illustration independently passes
+    the recovered-slot visual policy.
+    """
+
+    if (
+        style not in ("separate-cards", "count-text", "count-badge")
+        or len(assignments) < 3
+        or len(column_anchors) < 3
+    ):
         return {}
     if not _regular_spacing(column_anchors, geometry.width) or not _regular_spacing(
         row_anchors, geometry.height
@@ -256,15 +300,10 @@ def _grid_inferred_positions(
         for column in range(len(column_anchors)):
             if column in assignment:
                 continue
-            # An edge omission is indistinguishable from a ragged final row;
-            # only an interior geometric gap is strong enough to infer.  The
-            # occupied columns on both sides also make the "gap" explicit.
-            if column == 0 or column == len(column_anchors) - 1:
-                continue
-            if not any(existing < column for existing in assignment) or not any(
-                existing > column for existing in assignment
-            ):
-                continue
+            # Interior gaps have observations on both sides. Edge gaps are now
+            # also proposed when the same column appears in at least two other
+            # rows; later artwork matching, not geometry, decides whether the
+            # crop contains a card or merely a ragged/empty cell.
             support_rows = sum(
                 other_row != row and column in other_assignment
                 for other_row, other_assignment in enumerate(assignments)
@@ -285,13 +324,10 @@ def _make_inferred_slot(
     style: StyleName,
     support_rows: int,
 ) -> CardSlot:
-    width = max(1, round(geometry.width))
-    height = max(1, round(geometry.height))
-    bbox = BoundingBox(
-        round(center_x - width / 2.0),
-        round(center_y - height / 2.0),
-        width,
-        height,
+    bbox = _grid_bbox(
+        center_x=center_x,
+        center_y=center_y,
+        geometry=geometry,
     )
     return CardSlot(
         index=index,
@@ -305,8 +341,21 @@ def _make_inferred_slot(
         proposals=(),
         resolution_reason=(
             f"grid-inferred;global-anchor:{round(center_x)},{round(center_y)};"
-            f"support-rows:{support_rows};geometry:{width}x{height}"
+            f"support-rows:{support_rows};geometry:{bbox.width}x{bbox.height}"
         ),
+    )
+
+
+def _grid_bbox(*, center_x: float, center_y: float, geometry: _Geometry) -> BoundingBox:
+    """Create a dominant-size crop centered on one global grid anchor."""
+
+    width = max(1, round(geometry.width))
+    height = max(1, round(geometry.height))
+    return BoundingBox(
+        round(center_x - width / 2.0),
+        round(center_y - height / 2.0),
+        width,
+        height,
     )
 
 
@@ -325,6 +374,17 @@ def _dominant_geometry(proposals: tuple[RegionProposal, ...]) -> _Geometry:
         width=float(median([proposal.bbox.width for proposal in proposals])),
         height=float(median([proposal.bbox.height for proposal in proposals])),
     )
+
+
+def _resolved_geometry(clusters: list[_Cluster], seed: _Geometry) -> _Geometry:
+    """Re-estimate card dimensions from one representative per physical slot."""
+
+    representatives = [
+        _choose_representative(cluster.proposals, seed) for cluster in clusters if cluster.proposals
+    ]
+    if not representatives:
+        return seed
+    return _dominant_geometry(tuple(representatives))
 
 
 def _normalized_distance(proposal: RegionProposal, cluster: _Cluster, geometry: _Geometry) -> float:

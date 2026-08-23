@@ -162,8 +162,8 @@ def test_gui_returns_draft_qr_for_entity_only_ambiguity(
     }
     strict_policy = MatchPolicy("test-reject-all", min_score=1.1, min_entity_margin=1.1)
     monkeypatch.setattr(
-        "ptcgp_deck2qr.pipeline.policy_for_style",
-        lambda _style: strict_policy,
+        "ptcgp_deck2qr.matching.matcher.PORTRAIT_ARTWORK_POLICY",
+        strict_policy,
     )
 
     with running_server(config) as (_, base_url):

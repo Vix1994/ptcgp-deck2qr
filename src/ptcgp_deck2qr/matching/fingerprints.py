@@ -69,7 +69,7 @@ def fingerprint_image(image: ImageArray) -> Fingerprint:
         raise ValueError("cannot fingerprint an empty image")
     bgr = image if image.ndim == 3 else cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
     gray = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
-    artwork = _artwork_crop(bgr)
+    artwork = artwork_crop(bgr)
     artwork_gray = cv2.cvtColor(artwork, cv2.COLOR_BGR2GRAY)
     return Fingerprint(
         phash=_phash(gray),
@@ -113,14 +113,33 @@ def fingerprint_distance(
     )
 
 
-def _artwork_crop(image: ImageArray) -> ImageArray:
+def artwork_crop(
+    image: ImageArray,
+    *,
+    horizontal_shift: float = 0.0,
+    vertical_shift: float = 0.0,
+) -> ImageArray:
+    """Return the versioned illustration crop with optional bounded shifts.
+
+    The crop describes the reference artwork geometry, not a required detector
+    box.  Local alignment searches for this rectangle inside a wider card-face
+    window, while shifted copies are used only for coarse candidate recall.
+    """
+
     height, width = image.shape[:2]
     if width / max(1, height) > 1.05:
         return image
     # The lower part of a Pocket card contains text, attacks, and metadata.
     # Keep a stable interior crop of the illustration only; the policy version
     # is persisted in every generated index so it cannot silently drift.
-    return image[int(height * 0.08) : int(height * 0.56), int(width * 0.08) : int(width * 0.92)]
+    # Keep the unshifted boundaries byte-for-byte compatible with the
+    # ``artwork-inner-0.2`` index policy. Shift both sides together so recall
+    # views move without silently changing the authoritative center crop.
+    left = max(0, min(width - 1, int(width * (0.08 + horizontal_shift))))
+    top = max(0, min(height - 1, int(height * (0.08 + vertical_shift))))
+    right = max(left + 1, min(width, int(width * (0.92 + horizontal_shift))))
+    bottom = max(top + 1, min(height, int(height * (0.56 + vertical_shift))))
+    return image[top:bottom, left:right]
 
 
 def _numeric_list(value: object, name: str) -> list[int | float]:

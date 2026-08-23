@@ -3,13 +3,23 @@ from __future__ import annotations
 import json
 from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
+import cv2
 import numpy as np
 import pytest
+from numpy.typing import NDArray
 
 from ptcgp_deck2qr.carddb import load_database
 from ptcgp_deck2qr.carddb.errors import IndexSourceMismatch
-from ptcgp_deck2qr.detection import BoundingBox, CountObservation, DetectedRegion, DetectionResult
+from ptcgp_deck2qr.detection import (
+    BoundingBox,
+    CountObservation,
+    DetectedRegion,
+    DetectionResult,
+    RegionProposal,
+    StyleName,
+)
 from ptcgp_deck2qr.matching import MatchCandidate, MatchPolicy, MatchResult
 from ptcgp_deck2qr.pipeline import (
     RecognitionCard,
@@ -56,8 +66,8 @@ def test_pipeline_emits_canonical_text_and_debug_artifacts(tmp_path: Path) -> No
     assert first["selected_print"]
     assert "visual_score" in first and "entity_margin" in first
     assert "count_confidence" in first
-    assert first["match_policy"]["name"] == "full-card-v1"
-    assert report["match_policies"]["full-card-v1"]["min_score"] == 0.68
+    assert first["match_policy"]["name"] == "portrait-artwork-aligned-v2"
+    assert report["match_policies"]["portrait-artwork-aligned-v2"]["min_visible_patches"] == 6
     assert report["proposals"]
     assert len(report["slots"]) == len(report["cards"])
     assert report["slots"][0]["slot_id"] == first["slot_id"]
@@ -95,10 +105,10 @@ def test_pipeline_auto_handles_all_supported_screenshot_styles(
         (tmp_path / f"{expected_style}-output" / "recognition.json").read_text(encoding="utf-8")
     )
     expected_policy = {
-        "separate-cards": "full-card-v1",
+        "separate-cards": "portrait-artwork-aligned-v2",
         "quantity-label": "quantity-artwork-strict-v1",
-        "count-text": "full-card-v1",
-        "count-badge": "count-badge-strict-v1",
+        "count-text": "portrait-artwork-aligned-v2",
+        "count-badge": "portrait-artwork-aligned-v2",
     }[expected_style]
     assert {card["match_policy"]["name"] for card in report["cards"]} == {expected_policy}
 
@@ -119,6 +129,77 @@ def test_pipeline_rejects_wrong_total_but_keeps_diagnostics(tmp_path: Path) -> N
     assert not (tmp_path / "output" / "deck.txt").exists()
     assert (tmp_path / "output" / "deck.partial.txt").exists()
     assert (tmp_path / "output" / "recognized.png").exists()
+
+
+def test_pipeline_recovers_a_missing_contour_from_visible_artwork(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    database = make_database(tmp_path, count=10)
+    image_path = tmp_path / "corner-covered.png"
+    make_screenshot(image_path, card_count=10)
+    image = cv2.imread(str(image_path))
+    assert image is not None
+    target_x, target_y = 4 * 160, 0
+    image[target_y : target_y + 35, target_x + 90 : target_x + 120] = 255
+    assert cv2.imwrite(str(image_path), image)
+
+    from ptcgp_deck2qr.detection import regions as regions_module
+
+    original_find_candidates = regions_module._find_candidates
+
+    def omit_covered_card(source: NDArray[Any], style: StyleName) -> list[RegionProposal]:
+        proposals = original_find_candidates(source, style)
+        return [
+            proposal
+            for proposal in proposals
+            if not (
+                target_x <= proposal.center_x <= target_x + 120
+                and target_y <= proposal.center_y <= target_y + 170
+            )
+        ]
+
+    monkeypatch.setattr(regions_module, "_find_candidates", omit_covered_card)
+
+    result = recognize_image(
+        image_path,
+        energy="lightning",
+        database_path=database,
+        output_dir=tmp_path / "output",
+        style="separate-cards",
+    )
+
+    assert result.accepted
+    recovered = [card for card in result.cards if card.region.is_grid_inferred]
+    assert len(recovered) == 1
+    assert recovered[0].region.slot_id == "r01c05"
+    assert recovered[0].match.policy.name == "grid-recovered-artwork-aligned-strict-v2"
+    assert recovered[0].match.accepted
+    assert result.deck is not None and result.deck.total_count == 20
+
+
+def test_pipeline_discards_a_recovered_blank_grid_cell(tmp_path: Path) -> None:
+    database = make_database(tmp_path, count=10)
+    image_path = tmp_path / "blank-cell.png"
+    make_screenshot(image_path, card_count=10)
+    image = cv2.imread(str(image_path))
+    assert image is not None
+    target_x, target_y = 2 * 160, 1 * 210
+    image[target_y : target_y + 170, target_x : target_x + 120] = 255
+    assert cv2.imwrite(str(image_path), image)
+
+    result = recognize_image(
+        image_path,
+        energy="lightning",
+        database_path=database,
+        output_dir=tmp_path / "output",
+        style="separate-cards",
+    )
+
+    inferred = [slot for slot in result.detection.slots if slot.is_grid_inferred]
+    assert len(inferred) == 1
+    assert all(card.region.slot_id != inferred[0].slot_id for card in result.cards)
+    assert not result.accepted
+    assert result.draft_deck is not None and result.draft_deck.total_count == 19
 
 
 @pytest.mark.parametrize("copies", [18, 19])
@@ -154,8 +235,8 @@ def test_pipeline_builds_twenty_card_draft_from_ambiguous_top_candidates(
     make_screenshot(image, card_count=10)
     strict_policy = MatchPolicy("test-reject-all", min_score=1.1, min_entity_margin=1.1)
     monkeypatch.setattr(
-        "ptcgp_deck2qr.pipeline.policy_for_style",
-        lambda _style: strict_policy,
+        "ptcgp_deck2qr.matching.matcher.PORTRAIT_ARTWORK_POLICY",
+        strict_policy,
     )
 
     result = recognize_image(

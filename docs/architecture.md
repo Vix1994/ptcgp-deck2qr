@@ -68,13 +68,26 @@ The `SlotResolver` owns proposal clustering, dominant card geometry, global row/
 stable `slot_id` assignment. It is blind to Card IDs. A card repeated in two positions remains two
 slots, while nested contours for one physical position become one slot.
 
-For a strongly supported regular count-badge grid, the resolver may represent an interior missing
-contour as a `grid-inferred` slot. Such a slot is diagnostic geometry only and must fail closed until
-it has direct image evidence sufficient for recognition.
+For regular multi-row `separate-cards` and `count-text` grids, contour boxes locate physical slots
+but the resolver normalizes their final crops to the dominant representative size and global grid
+centers. This keeps proportional artwork ROIs aligned when one border contour is short or shifted;
+the original proposal boxes remain available for diagnostics.
+
+For a strongly supported regular portrait grid, the resolver may represent an interior or edge missing
+contour as a `grid-inferred` slot. Such a slot is only a geometric crop candidate. The pipeline
+discards it unless its artwork independently passes the strict recovered-slot visual and entity
+margin policy; an accepted recovered slot then has direct image evidence sufficient for recognition.
 
 ### `matching`
 
-Builds fingerprints from unique visual assets, retrieves candidates, reranks them, and produces visual/entity evidence. It must not decide deck validity.
+Builds fingerprints from unique visual assets, retrieves candidates, reranks them, and produces
+visual/entity evidence. Portrait screenshot styles use artwork as the entity signal; complete-card
+fingerprints do not override an ambiguous artwork decision. Their slot rectangle is deliberately
+approximate rather than an exact identity ROI. Shifted artwork hashes perform coarse recall, a wider
+window supplies five-scale local alignment, and the six strongest cells of a 3×3 comparison make the
+score tolerant of bounded occlusion. ORB matches and a RANSAC homography verify only the leading
+candidates after the cheaper local rerank. Hash score, patch visibility, feature inliers, and
+distinct-entity margin remain separate diagnostics. It must not decide deck validity.
 
 ### `pipeline`
 
@@ -139,7 +152,8 @@ The pipeline fails closed:
 - Detection failure is not a zero-card deck.
 - Multiple proposals for one physical position are resolved before matching and counting.
 - Duplicate `slot_id` values are a structural error, not extra copies of a card.
-- A grid-inferred slot without direct proposal evidence cannot enter a valid Deck.
+- A grid-inferred slot cannot enter a valid Deck unless its artwork passes the strict recovered-slot
+  visual and entity-margin policy.
 - A close top-two entity match is not accepted as top one.
 - An unreadable quantity is not assumed to be one.
 - A 19- or 21-card result does not produce a successful `deck.txt`.
