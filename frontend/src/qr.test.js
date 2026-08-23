@@ -41,3 +41,58 @@ test('fails closed for invalid totals and identities', async () => {
     /缺少游戏实体编号/,
   );
 });
+
+test('generates explicitly marked eighteen- and nineteen-card draft codes', async () => {
+  const cards = Array.from({length: 10}, (_, index) => ({
+    print_id: `A1-${String(index + 1).padStart(3, '0')}`,
+    image: `cPK_10_${String((index + 1) * 10).padStart(6, '0')}_00_TEST.webp`,
+    count: index === 0 ? 1 : 2,
+  }));
+
+  const result = await generateDeckQr({
+    name: 'Draft',
+    energies: ['fire'],
+    cards,
+    allow_incomplete: true,
+  });
+
+  assert.equal(parseDeckCode(result.deckCode).deckBuilderNrs.length, 19);
+
+  const eighteen = cards.map((card, index) => ({
+    ...card,
+    count: index < 2 ? 1 : 2,
+  }));
+  const secondResult = await generateDeckQr({
+    name: 'Draft',
+    energies: ['fire'],
+    cards: eighteen,
+    allow_incomplete: true,
+  });
+  assert.equal(parseDeckCode(secondResult.deckCode).deckBuilderNrs.length, 18);
+});
+
+test('rejects unmarked incomplete and undersized draft totals', async () => {
+  const nineteen = [{
+    print_id: 'A1-001',
+    image: 'cPK_10_000010_00_TEST.webp',
+    count: 1,
+  }, ...Array.from({length: 9}, (_, index) => ({
+    print_id: `A1-${String(index + 2).padStart(3, '0')}`,
+    image: `cPK_10_${String((index + 2) * 10).padStart(6, '0')}_00_TEST.webp`,
+    count: 2,
+  }))];
+
+  await assert.rejects(
+    generateDeckQr({name: 'Unmarked', energies: ['fire'], cards: nineteen}),
+    /应为 20/,
+  );
+  await assert.rejects(
+    generateDeckQr({
+      name: 'Too small',
+      energies: ['fire'],
+      cards: nineteen.slice(0, 9),
+      allow_incomplete: true,
+    }),
+    /应为 20/,
+  );
+});

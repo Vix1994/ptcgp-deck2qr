@@ -106,7 +106,7 @@ def test_pipeline_auto_handles_all_supported_screenshot_styles(
 def test_pipeline_rejects_wrong_total_but_keeps_diagnostics(tmp_path: Path) -> None:
     database = make_database(tmp_path, count=10)
     image = tmp_path / "deck.png"
-    make_screenshot(image, copies=19, card_count=10)
+    make_screenshot(image, copies=17, card_count=10)
     result = recognize_image(
         image,
         energy="fire",
@@ -119,6 +119,31 @@ def test_pipeline_rejects_wrong_total_but_keeps_diagnostics(tmp_path: Path) -> N
     assert not (tmp_path / "output" / "deck.txt").exists()
     assert (tmp_path / "output" / "deck.partial.txt").exists()
     assert (tmp_path / "output" / "recognized.png").exists()
+
+
+@pytest.mark.parametrize("copies", [18, 19])
+def test_pipeline_builds_incomplete_draft(tmp_path: Path, copies: int) -> None:
+    database = make_database(tmp_path, count=10)
+    image = tmp_path / "deck.png"
+    make_screenshot(image, copies=copies, card_count=10)
+
+    result = recognize_image(
+        image,
+        energy="fire",
+        database_path=database,
+        output_dir=tmp_path / "output",
+        style="separate-cards",
+    )
+
+    assert not result.accepted
+    assert result.draft_deck is not None and result.draft_deck.total_count == copies
+    assert result.deck is not None and result.deck.total_count == copies
+    assert not (tmp_path / "output" / "deck.txt").exists()
+    assert (tmp_path / "output" / "deck.partial.txt").exists()
+    report = json.loads((tmp_path / "output" / "recognition.json").read_text(encoding="utf-8"))
+    assert report["validation"]["card_count"] == copies
+    assert report["validation"]["missing_card_count"] == 20 - copies
+    assert report["validation"]["draft_qr_available"] is True
 
 
 def test_pipeline_builds_twenty_card_draft_from_ambiguous_top_candidates(
@@ -154,6 +179,7 @@ def test_pipeline_builds_twenty_card_draft_from_ambiguous_top_candidates(
         "card_count": 20,
         "draft_qr_available": True,
         "errors": ["match-ambiguous-entity"],
+        "missing_card_count": 0,
         "reliable_card_count": 0,
         "uncertain_entity_count": 20,
     }

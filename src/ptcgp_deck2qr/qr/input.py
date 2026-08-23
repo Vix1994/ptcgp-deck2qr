@@ -1,4 +1,4 @@
-"""Convert a validated Deck into the database identities used by the QR encoder."""
+"""Convert a validated Deck or review draft into QR encoder identities."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from ..decktext import Deck, validate_deck
 
 
 class QrInputError(ValueError):
-    """Raised when a validated Deck cannot be mapped to QR identities."""
+    """Raised when a Deck cannot be mapped safely to QR identities."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -32,19 +32,28 @@ class QrInput:
     name: str
     energies: tuple[str, ...]
     cards: tuple[QrCardInput, ...]
+    allow_incomplete: bool = False
 
     def to_dict(self) -> dict[str, object]:
         return {
             "name": self.name,
             "energies": list(self.energies),
             "cards": [card.to_dict() for card in self.cards],
+            "allow_incomplete": self.allow_incomplete,
         }
 
 
-def build_qr_input(deck: Deck, database: CardDatabase) -> QrInput:
-    """Resolve a complete Deck through the active database and fail closed."""
+def build_qr_input(
+    deck: Deck,
+    database: CardDatabase,
+    *,
+    allow_incomplete: bool = False,
+) -> QrInput:
+    """Resolve a complete Deck, or an explicitly opted-in 18-19 card draft."""
 
-    validate_deck(deck, resolver=database)
+    validate_deck(deck, resolver=database, require_twenty=not allow_incomplete)
+    if allow_incomplete and not 18 <= deck.total_count <= 20:
+        raise QrInputError(f"draft QR requires 18 to 20 cards, got {deck.total_count}")
     entity_counts: dict[CardEntityKey, int] = {}
     cards: list[QrCardInput] = []
     for card in deck.cards:
@@ -61,4 +70,9 @@ def build_qr_input(deck: Deck, database: CardDatabase) -> QrInput:
         entity_counts[resolved.entity] = combined
         cards.append(QrCardInput(card.ref.print_id, resolved.image, card.count))
 
-    return QrInput(deck.name or "ptcgp-deck", deck.energies, tuple(cards))
+    return QrInput(
+        deck.name or "ptcgp-deck",
+        deck.energies,
+        tuple(cards),
+        allow_incomplete=allow_incomplete,
+    )

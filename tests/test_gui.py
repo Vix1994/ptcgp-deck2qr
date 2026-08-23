@@ -105,6 +105,7 @@ def test_gui_recognizes_synthetic_deck_over_http(tmp_path: Path) -> None:
         qr_input = result["qr_input"]
         assert isinstance(qr_input, dict)
         assert qr_input["energies"] == ["lightning"]
+        assert qr_input["allow_incomplete"] is False
         assert len(qr_input["cards"]) == 10
         assert result["qr_error"] is None
 
@@ -173,9 +174,38 @@ def test_gui_returns_draft_qr_for_entity_only_ambiguity(
     assert result["card_count"] == 20
     assert result["qr_is_draft"] is True
     assert result["uncertain_entity_count"] == 20
-    assert isinstance(result["qr_input"], dict)
+    qr_input = result["qr_input"]
+    assert isinstance(qr_input, dict)
+    assert qr_input["allow_incomplete"] is True
     assert result["qr_error"] is None
     assert "# PTCGP-DECK 1" in str(result["deck_text"])
+
+
+def test_gui_returns_draft_qr_for_nineteen_cards(tmp_path: Path) -> None:
+    database = make_database(tmp_path, count=10)
+    image = tmp_path / "deck.png"
+    make_screenshot(image, copies=19, card_count=10)
+    config = GuiConfig(database, tmp_path / "output", port=0)
+    payload = {
+        "filename": image.name,
+        "image_base64": base64.b64encode(image.read_bytes()).decode(),
+        "energies": ["lightning"],
+        "style": "separate-cards",
+    }
+
+    with running_server(config) as (_, base_url):
+        status, result = post_json(f"{base_url}/api/recognize", payload)
+
+    assert status == 200
+    assert result["accepted"] is False
+    assert result["card_count"] == 19
+    assert result["missing_card_count"] == 1
+    assert result["qr_is_draft"] is True
+    assert result["uncertain_entity_count"] == 0
+    qr_input = result["qr_input"]
+    assert isinstance(qr_input, dict)
+    assert qr_input["allow_incomplete"] is True
+    assert result["qr_error"] is None
 
 
 def test_gui_rejects_busy_and_unknown_routes(tmp_path: Path) -> None:

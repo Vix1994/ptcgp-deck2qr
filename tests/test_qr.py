@@ -23,6 +23,15 @@ def make_deck(*, count: int = 2) -> Deck:
     return Deck(("lightning",), pokemon, trainer, "Synthetic Deck")
 
 
+def make_incomplete_deck(*, missing: int) -> Deck:
+    deck = make_deck()
+    pokemon = tuple(
+        DeckCard(card.ref, card.name, 1 if index < missing else 2, card.section)
+        for index, card in enumerate(deck.pokemon)
+    )
+    return Deck(deck.energies, pokemon, deck.trainer, deck.name)
+
+
 def test_qr_input_resolves_validated_deck_through_database(tmp_path: Path) -> None:
     database = load_database(make_database(tmp_path, count=10))
     qr_input = build_qr_input(make_deck(), database)
@@ -37,12 +46,30 @@ def test_qr_input_resolves_validated_deck_through_database(tmp_path: Path) -> No
         "count": 2,
     }
     assert qr_input.to_dict()["energies"] == ["lightning"]
+    assert qr_input.to_dict()["allow_incomplete"] is False
 
 
 def test_qr_input_rejects_incomplete_deck(tmp_path: Path) -> None:
     database = load_database(make_database(tmp_path, count=10))
     with pytest.raises(ValueError, match="exactly 20"):
         build_qr_input(make_deck(count=1), database)
+
+
+@pytest.mark.parametrize("missing", [1, 2])
+def test_qr_input_allows_explicit_incomplete_draft(tmp_path: Path, missing: int) -> None:
+    database = load_database(make_database(tmp_path, count=10))
+    qr_input = build_qr_input(
+        make_incomplete_deck(missing=missing), database, allow_incomplete=True
+    )
+
+    assert sum(card.count for card in qr_input.cards) == 20 - missing
+    assert qr_input.to_dict()["allow_incomplete"] is True
+
+
+def test_qr_input_rejects_draft_below_eighteen_cards(tmp_path: Path) -> None:
+    database = load_database(make_database(tmp_path, count=10))
+    with pytest.raises(QrInputError, match="18 to 20"):
+        build_qr_input(make_deck(count=1), database, allow_incomplete=True)
 
 
 def test_qr_input_rejects_non_deck_builder_identity(tmp_path: Path) -> None:

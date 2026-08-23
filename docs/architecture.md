@@ -34,7 +34,8 @@ The optional local GUI is a presentation adapter around the same pipeline:
 React UI -> local Python HTTP adapter -> pipeline.recognize_image
                                            |
                                            +-> deck.txt + diagnostics
-                                           +-> validated QR input -> browser Deck Code + QR
+                                           +-> validated or review-draft QR input
+                                               -> browser Deck Code + QR
 ```
 
 ## Module boundaries
@@ -82,7 +83,8 @@ Coordinates the modules, aggregates accepted observations, validates the Deck, a
 ### `gui` and `webgui`
 
 `gui` serves the compiled React application, adapts one local request into the existing pipeline call,
-and exposes QR input only for an accepted Deck. `webgui` contains generated static build artifacts.
+and exposes QR input for an accepted Deck or an explicitly marked 18-20 card review draft. `webgui`
+contains generated static build artifacts.
 Neither layer owns recognition, Deck validation, or canonical writing. The editable frontend source
 lives under `frontend/`; it delegates the Deck Code format and QR rendering to the pinned
 `ptcgp-deckcode` package.
@@ -93,8 +95,10 @@ Renders `recognized.png` and serializes `recognition.json`. Diagnostic serializa
 
 ### `qr`
 
-Consumes only a validated Deck model and the active card database. It resolves print identities for
-the pinned browser Deck Code encoder. It must not import detection or matching code.
+Consumes only a Deck model and the active card database. Its normal path requires a validated
+20-card Deck; its explicit review path accepts only a structurally validated 18-20 card draft. It
+resolves print identities for the pinned browser Deck Code encoder and must not import detection or
+matching code.
 
 ## Dependency direction
 

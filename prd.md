@@ -585,7 +585,9 @@ Demo 可以提供 `ptcgp-deck2qr gui` 作为 CLI 的本地操作界面。GUI 只
 - 复制或下载成功的 `deck.txt`，或查看失败诊断。
 
 GUI 不增加卡组历史、收藏、商店、社区、账号、云端同步或卡牌编辑功能。
-识别通过后，GUI 自动从已验证 Deck 生成 Deck Code 和二维码；识别失败时不得生成。
+识别通过后，GUI 自动从已验证 Deck 生成 Deck Code 和二维码。若结构和数量证据可靠、每个
+位置都有数据库候选，但仅识别到 18–19 张或存在实体歧义，GUI 可以生成明确标注的草稿
+二维码供用户尝试导入和编辑；该结果仍为识别失败，不生成正式 `deck.txt`。其他失败不得生成。
 它必须调用同一 Python 识别管线，不得在前端复制识别和验证规则。
 
 ## 16. 技术方案约束
@@ -645,7 +647,9 @@ src/ptcgp_deck2qr/
     report.py
 ```
 
-`decktext` 必须独立于图片识别。QR 模块只能依赖已验证的 Deck model 和 `carddb`，不能依赖 OpenCV 或截图对象。
+`decktext` 必须独立于图片识别。QR 模块只能依赖 Deck model 和 `carddb`，正常路径必须消费
+已验证的 20 张 Deck；显式草稿路径仅接受结构可靠的 18–20 张 Deck。QR 模块不能依赖 OpenCV
+或截图对象。
 
 当前 QR 阶段的边界：
 
@@ -723,6 +727,7 @@ deck-qr.png
 ### Milestone 6：QR
 
 - 已独立实现 `validated Deck → QR input → Deck Code → QR`。
+- 已实现显式标记的 `18–20 card review draft → QR`，但 18–19 张需真机确认游戏是否接受。
 - 已用编码后再解析的 round-trip 测试验证 payload 结构。
 - 待增加真机扫描验收。
 
@@ -746,4 +751,6 @@ deck-qr.png
 输出：标准 deck.txt + 可验证的识别调试结果 + 通过本地 GUI 自动生成的 QR Code
 ```
 
-QR Code 只在当前 Demo 的识别结果完整通过后生成。QR 模块只消费已验证 Deck 和数据库映射，从而避免 QR 协议变化反向污染图片识别模块。
+正式 QR Code 只在当前 Demo 的识别结果完整通过后生成。对于仅缺 1–2 张或仅有实体歧义、
+且结构和数量证据可靠的结果，可以生成明确标注的草稿 QR 供用户尝试导入后编辑；草稿不计为
+识别通过。QR 模块只消费 Deck model 和数据库映射，从而避免 QR 协议变化反向污染图片识别模块。

@@ -17,6 +17,10 @@ test('translates interface, style, and recognition error copy', () => {
     translate('zh', 'result.draftQrReady', {count: 2}),
     '草稿二维码已生成，导入后请检查 2 张候选卡',
   );
+  assert.equal(
+    translate('zh', 'result.incompleteDraftQrReady', {count: 2, missing: 1}),
+    '未满编草稿二维码已生成：缺 1 张，候选 2 张',
+  );
   assert.equal(styleLabel('en', 'count-badge'), 'Number badges');
   assert.equal(errorLabel('en', 'count-ambiguous'), 'One or more card counts are uncertain');
 });

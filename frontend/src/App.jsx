@@ -144,7 +144,12 @@ function App() {
                   : t('result.qrWorking'))
             : result.qr_is_draft
               ? (qr.status === 'ready'
-                  ? t('result.draftQrReady', {count: result.uncertain_entity_count})
+                  ? result.missing_card_count > 0
+                    ? t('result.incompleteDraftQrReady', {
+                        count: result.uncertain_entity_count,
+                        missing: result.missing_card_count,
+                      })
+                    : t('result.draftQrReady', {count: result.uncertain_entity_count})
                   : qr.status === 'error'
                     ? t('result.draftQrFailed')
                     : t('result.draftQrWorking'))
@@ -415,6 +420,7 @@ function ResultPanel({result, state, copied, qr, qrCopied, cacheKey, deckArtifac
         qr={qr}
         draft={Boolean(result?.qr_is_draft)}
         uncertainCount={result?.uncertain_entity_count ?? 0}
+        missingCount={result?.missing_card_count ?? 0}
         copied={qrCopied}
         onCopy={onCopyDeckCode}
         t={t}
@@ -443,7 +449,7 @@ function ResultPanel({result, state, copied, qr, qrCopied, cacheKey, deckArtifac
   );
 }
 
-function QrOutput({qr, draft, uncertainCount, copied, onCopy, t}) {
+function QrOutput({qr, draft, uncertainCount, missingCount, copied, onCopy, t}) {
   const filename = `${sanitizeFilename(qr.name || 'ptcgp-deck')}-qr.png`;
   return (
     <div className="qr-output" data-status={qr.status} data-draft={draft} aria-live="polite">
@@ -454,7 +460,15 @@ function QrOutput({qr, draft, uncertainCount, copied, onCopy, t}) {
       {qr.status === 'ready' ? <div className="qr-ready">
         <img src={qr.dataUrl} alt={t('qr.alt', {name: qr.name || 'PTCGP'})} />
         <div className="qr-copy">
-          <p>{draft ? t('qr.draftScanHint', {count: uncertainCount}) : t('qr.scanHint')}</p>
+          <p>{draft
+            ? missingCount > 0
+              ? t('qr.incompleteDraftScanHint', {
+                  cardCount: 20 - missingCount,
+                  count: uncertainCount,
+                  missing: missingCount,
+                })
+              : t('qr.draftScanHint', {count: uncertainCount})
+            : t('qr.scanHint')}</p>
           <a className="primary-button compact" href={qr.dataUrl} download={filename}>{t('qr.download')}</a>
           <button className="secondary-button" type="button" onClick={onCopy}>{copied ? t('qr.copied') : t('qr.copy')}</button>
         </div>

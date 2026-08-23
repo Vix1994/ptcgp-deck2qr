@@ -258,7 +258,11 @@ def recognize_payload(
     qr_is_draft = not result.accepted and result.draft_deck is not None
     if qr_deck is not None:
         try:
-            qr_input = build_qr_input(qr_deck, runtime.database).to_dict()
+            qr_input = build_qr_input(
+                qr_deck,
+                runtime.database,
+                allow_incomplete=qr_is_draft,
+            ).to_dict()
         except QrInputError as exc:
             qr_error = str(exc)
     validation = report.get("validation")
@@ -277,6 +281,7 @@ def recognize_payload(
         "qr_error": qr_error,
         "qr_is_draft": qr_is_draft,
         "uncertain_entity_count": validation_dict.get("uncertain_entity_count", 0),
+        "missing_card_count": validation_dict.get("missing_card_count", 0),
         "artifacts": artifacts,
         "output_dir": str(config.output_dir),
     }

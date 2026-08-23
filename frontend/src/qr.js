@@ -23,7 +23,10 @@ export async function generateDeckQr(input) {
     entityCounts.set(number, combined);
     for (let copy = 0; copy < card.count; copy += 1) deckBuilderNumbers.push(number);
   }
-  if (deckBuilderNumbers.length !== 20) {
+  const incompleteDraft = input.allow_incomplete === true
+    && deckBuilderNumbers.length >= 18
+    && deckBuilderNumbers.length < 20;
+  if (deckBuilderNumbers.length !== 20 && !incompleteDraft) {
     throw new Error(`无法生成二维码：卡组总数为 ${deckBuilderNumbers.length}，应为 20`);
   }
 

@@ -78,7 +78,9 @@ Launch the optional React interface around the same recognition pipeline:
 
 The browser opens on `127.0.0.1`. Select, drag, or paste a clipboard image with `Ctrl+V`; then choose
 energy and run recognition. After a validated 20-card result, the GUI automatically generates a QR
-and offers PNG download and Deck Code copy. The GUI optionally overrides
+and offers PNG download and Deck Code copy. A structurally reliable 18-19 card result can instead
+produce a clearly marked draft QR for import-and-edit attempts; game acceptance of incomplete codes
+is not yet verified, and this never counts as a successful recognition. The GUI optionally overrides
 the screenshot style, runs recognition, and shows or downloads the existing outputs. It does not add
 deck editing, history, accounts, or cloud upload. Use the `中 / EN` control in the top bar to switch
 the complete interface language; the choice is remembered locally.

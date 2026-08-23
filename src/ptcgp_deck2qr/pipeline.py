@@ -256,16 +256,18 @@ def _make_result(
     if any(card.count.count not in (1, 2) for card in cards):
         errors.append("count-ambiguous")
     deck = _build_deck(cards, energies, database, source.stem)
-    draft_deck = _build_entity_draft(cards, energies, database, source.stem, detection)
+    draft_deck = _build_review_draft(cards, energies, database, source.stem, detection)
     if deck is None and cards and draft_deck is None:
         errors.append("card-aggregation-failed")
+    deck_valid = False
     if deck is not None:
         try:
             validate_deck(deck, resolver=database)
+            deck_valid = True
         except DeckValidationError as exc:
-            if draft_deck is None:
+            if draft_deck is None or draft_deck.total_count < 20:
                 errors.append(str(exc))
-    accepted = not errors and deck is not None
+    accepted = deck_valid and not errors and deck is not None
     if accepted:
         draft_deck = None
     return RecognitionResult(
@@ -324,14 +326,14 @@ def _build_deck(
     return Deck(energies=energies, pokemon=pokemon, trainer=trainer, name=name)
 
 
-def _build_entity_draft(
+def _build_review_draft(
     cards: tuple[RecognitionCard, ...],
     energies: tuple[str, ...],
     database: CardDatabase,
     name: str,
     detection: DetectionResult,
 ) -> Deck | None:
-    """Build a 20-card draft only when entity confidence is the sole uncertainty."""
+    """Build a reviewable 18-20 card draft from structurally reliable slots."""
 
     slot_ids = [card.region.slot_id for card in cards]
     if (
@@ -341,7 +343,6 @@ def _build_entity_draft(
         or any(card.region.is_grid_inferred for card in cards)
         or any(card.count.count not in (1, 2) for card in cards)
         or any(card.match.selected is None for card in cards)
-        or all(card.match.accepted for card in cards)
     ):
         return None
     draft = _build_deck(
@@ -354,8 +355,12 @@ def _build_entity_draft(
     if draft is None:
         return None
     try:
-        validate_deck(draft, resolver=database)
+        validate_deck(draft, resolver=database, require_twenty=False)
     except DeckValidationError:
+        return None
+    if not 18 <= draft.total_count <= 20:
+        return None
+    if draft.total_count == 20 and all(card.match.accepted for card in cards):
         return None
     return draft
 
@@ -427,6 +432,17 @@ def _write_diagnostics(
             "reliable_card_count": result.deck.total_count if result.deck is not None else 0,
             "draft_qr_available": result.draft_deck is not None,
             "uncertain_entity_count": sum(not card.match.accepted for card in result.cards),
+            "missing_card_count": max(
+                0,
+                20
+                - (
+                    result.draft_deck.total_count
+                    if result.draft_deck is not None
+                    else result.deck.total_count
+                    if result.deck is not None
+                    else 0
+                ),
+            ),
         },
     }
     (result.output_dir / "recognition.json").write_text(
