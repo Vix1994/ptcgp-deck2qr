@@ -23,6 +23,7 @@ The project follows Keep a Changelog structure. A public release versioning poli
 
 ### Added
 
+- License the project's original source code and documentation under the MIT License.
 - Initial Python project scaffold.
 - Product, architecture, development, testing, data, Card Database, and Deck Text documentation.
 - Baseline lint, format, type-check, test, and CI configuration.

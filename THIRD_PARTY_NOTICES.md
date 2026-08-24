@@ -1,7 +1,7 @@
 # Third-party notices
 
 This file records third-party data and software notices that apply independently of
-the license, or absence of a license, for `ptcgp-deck2qr` itself.
+the MIT License for `ptcgp-deck2qr` itself.
 
 ## pokemon-tcg-pocket-database
 

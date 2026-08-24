@@ -2,7 +2,9 @@
 
 ## Repository license
 
-No license has been selected for `ptcgp-deck2qr` yet. Add a project `LICENSE` only after the maintainer chooses one intentionally.
+The original source code and documentation in `ptcgp-deck2qr` are licensed under the
+[MIT License](../LICENSE). This license does not grant rights to third-party software, database
+content, Pokémon artwork, names, logos, or trademarks.
 
 ## External card database
 

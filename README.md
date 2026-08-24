@@ -1,184 +1,106 @@
 # ptcgp-deck2qr
 
-Convert a Pokémon TCG Pocket deck screenshot into a canonical, human-editable deck text file.
+Convert a structured Pokémon TCG Pocket deck screenshot into canonical Deck Text and, through the
+local GUI, a Deck Code and QR image.
 
-> Status: pre-alpha local screenshot-to-Deck-Text-and-QR MVP.
+> Status: pre-alpha local MVP.
 
-## Optional Game8 userscript
+## Purpose
 
-The independent [Game8 Tampermonkey adapter](userscript/README.md) adds a `生成 QR`
-button to structured Game8 deck-list sections. It validates the page's 20-card list and
-generates a deck-share QR locally in the browser.
+The recognition pipeline converts a screenshot plus explicit energy selection into a validated Deck
+model and canonical `deck.txt`. The optional local GUI then generates a Deck Code and QR from that
+model. Ambiguous cards or counts fail closed, and QR encoding remains independent of recognition.
 
-[Install the current userscript directly from GitHub Raw](https://raw.githubusercontent.com/Vix1994/ptcgp-deck2qr/main/userscript/release/game8-ptcgp-deck-qr.user.js).
-After this one-time installation, Tampermonkey checks a lightweight metadata file and
-updates the script automatically when its version increases. The installed loader keeps
-the versioned core and compact card map as separate integrity-checked resources, so a
-normal code update does not replace the unchanged map.
+The current recognizer accepts structured deck-list screenshots in PNG, JPEG, or WebP format. It is
+not intended for photographs, heavily tilted cards, or severely obscured layouts. Supported energies
+are `grass`, `fire`, `water`, `lightning`, `psychic`, `fighting`, `darkness`, and `metal`.
 
-This adapter is separate from the screenshot-recognition milestone below; it does not
-add QR encoding to, or depend on, the recognition pipeline.
+## Usage
 
-## Current scope
+Python 3.11 or newer and an external
+[`pokemon-tcg-pocket-database`](https://github.com/flibustier/pokemon-tcg-pocket-database/releases/latest)
+release are required. Its `dist` directory must contain `cards.json`, `sets.json`, and
+`images/cards-by-set/{set}/{number}.webp`.
 
-The first milestone is deliberately narrow:
-
-```text
-deck screenshot + explicit energy selection
-  -> card/entity/count recognition
-  -> validated Deck model
-  -> canonical deck.txt
-  -> local Deck Code + QR
-```
-
-QR encoding remains an independent downstream stage. This keeps image recognition testable without
-coupling it to a reverse-engineered game payload.
-
-## Recognition CLI
-
-```text
-output/
-├── deck.txt
-├── recognition.json
-└── recognized.png
-```
-
-Build a rebuildable local fingerprint index from an external database release:
+Install the project and point it at the extracted `dist` directory:
 
 ```powershell
-.\.venv\Scripts\ptcgp-deck2qr.exe build-index `
-  --database-path H:\CodexCode\ptcgp-database\dist `
-  --output data\index\fingerprint.json
+py -3.11 -m venv .venv
+.\.venv\Scripts\python -m pip install -e ".[dev]"
+$env:PTCGP_DATABASE_PATH = "H:\path\to\pokemon-tcg-pocket-database\dist"
 ```
 
-Recognize a screenshot with explicit energy input:
+Build the local fingerprint index once:
+
+```powershell
+.\.venv\Scripts\ptcgp-deck2qr.exe build-index
+```
+
+Recognize a screenshot:
 
 ```powershell
 .\.venv\Scripts\ptcgp-deck2qr.exe recognize deck.png `
   --energy lightning `
-  --database-path H:\CodexCode\ptcgp-database\dist `
   --index-path data\index\fingerprint.json `
   --output-dir output
 ```
 
-Low-confidence entity or count decisions fail closed: diagnostics are still
-written, but a successful `deck.txt` is not emitted. Use `--style` to override
-automatic layout classification when a screenshot is ambiguous.
+Successful recognition writes `deck.txt`, `recognition.json`, and `recognized.png`. Rejected
+recognition still writes diagnostics and may write `deck.partial.txt`.
 
-Portrait card identity is matched from the illustration rather than the complete border/text crop.
-The grid supplies only an approximate card slot: nine shifted views recall candidates, then a wider
-search window aligns each candidate across five scales. The final score uses the six strongest cells
-of a 3×3 illustration grid plus ORB/RANSAC evidence for the closest candidates, so a small crop shift
-or a covered corner does not require a new pixel-coordinate exception. For regular portrait grids,
-one missing interior or edge contour can be recovered from
-neighboring row/column geometry. The recovered crop must still pass a stricter artwork-only entity
-match; grid position alone never invents a card, and blank or ambiguous cells are discarded.
-Regular multi-row card grids also normalize direct contour crops to the shared grid centers and
-dominant card size, preventing one shortened or shifted border from losing the slot entirely.
-
-## Local GUI
-
-Launch the optional React interface around the same recognition pipeline:
+Launch the local browser GUI:
 
 ```powershell
-.\.venv\Scripts\ptcgp-deck2qr.exe gui `
-  --database-path H:\CodexCode\ptcgp-database\dist `
-  --index-path data\index\fingerprint.json `
-  --output-dir output
+.\.venv\Scripts\ptcgp-deck2qr.exe gui
 ```
 
-The browser opens on `127.0.0.1`. Select, drag, or paste a clipboard image with `Ctrl+V`; then choose
-energy and run recognition. After a validated 20-card result, the GUI automatically generates a QR
-and offers PNG download and Deck Code copy. A structurally reliable 18-19 card result can instead
-produce a clearly marked draft QR for import-and-edit attempts; game acceptance of incomplete codes
-is not yet verified, and this never counts as a successful recognition. The GUI optionally overrides
-the screenshot style, runs recognition, and shows or downloads the existing outputs. It does not add
-deck editing, history, accounts, or cloud upload. Use the `中 / EN` control in the top bar to switch
-the complete interface language; the choice is remembered locally.
+The GUI accepts selected, dragged, or pasted images and can download the QR PNG or copy the Deck
+Code. A reliable 18- or 19-card result may produce a clearly marked draft QR; recognition still
+counts as failed, and game acceptance of an incomplete code is not verified.
 
-### QR algorithm and data provenance
+POSIX setup and development commands are in the [development guide](docs/development.md).
 
-The QR path combines three independently attributable pieces:
+## Optional Game8 userscript
 
-- Deck-share payload encoding uses the pinned
-  [`ptcgp-deckcode` 2.0.0](https://github.com/Nirostar/ptcgp-deck-qr/tree/master/packages/deckcode),
-  a community reverse-engineering of the game's share format. It is not an official Pokémon API or
-  protocol specification.
-- QR matrix generation and PNG rendering use
-  [`qrcode` 1.5.4](https://www.npmjs.com/package/qrcode), an MIT-licensed transitive dependency of
-  `ptcgp-deckcode`.
-- Card print IDs are mapped to the game's internal deck-builder number from the `image` field supplied
-  by [`flibustier/pokemon-tcg-pocket-database`](https://github.com/flibustier/pokemon-tcg-pocket-database).
+The independent [Game8 Tampermonkey adapter](userscript/README.md) adds a `生成 QR` button to
+supported Game8 deck lists and generates the Deck Code and QR locally in the browser.
 
-The GUI reads the database release explicitly selected with `--database-path`; it does not download a
-floating database version through the encoder. The independent Game8 userscript instead bundles a
-compact, source-hashed mapping generated from database version `2.9.1`. Neither path vendors the
-complete upstream `cards.json` or official card artwork. See the
-[card database contract](docs/card-database-contract.md) and
-[third-party notices](THIRD_PARTY_NOTICES.md) for the exact boundary, source details, and licenses.
+[Install the current userscript from GitHub Raw](https://raw.githubusercontent.com/Vix1994/ptcgp-deck2qr/main/userscript/release/game8-ptcgp-deck-qr.user.js).
 
-React and Vite are development dependencies only. Rebuild the packaged static assets after changing
-`frontend/`:
+The userscript validates a complete 20-card list and updates through Tampermonkey. It is independent
+of screenshot recognition.
 
-```powershell
-cd frontend
-npm install
-npm run build
-```
+## Data and project statements
 
-The canonical format is specified in [Deck Text Format v1](docs/deck-text-format-v1.md).
+- Processing and QR generation are local; the project does not provide a cloud service or user
+  accounts.
+- The external card database, official card images, user screenshots, and generated recognition
+  indexes are not distributed in the Python package.
+- The local GUI uses the database release selected by `--database-path` or
+  `PTCGP_DATABASE_PATH`; it does not fetch a floating database through the QR encoder.
+- The Game8 userscript contains a compact source-hashed mapping derived from database version
+  `2.9.1`; it does not contain the complete upstream database or card artwork.
+- Pokémon names, artwork, logos, and trademarks belong to their respective rights holders. This is
+  an unofficial community project and is not affiliated with or endorsed by The Pokémon Company.
 
-## Documentation
+For details, see [Deck Text Format v1](docs/deck-text-format-v1.md),
+[architecture](docs/architecture.md), [product requirements](prd.md), the
+[card database contract](docs/card-database-contract.md), and [data and licensing](docs/data-and-licensing.md).
 
-- [Product requirements](prd.md)
-- [Deck Text Format v1](docs/deck-text-format-v1.md)
-- [Architecture](docs/architecture.md)
-- [Development guide](docs/development.md)
-- [Testing strategy](docs/testing.md)
-- [Card database contract](docs/card-database-contract.md)
-- [Data and licensing](docs/data-and-licensing.md)
-- [Contributing](CONTRIBUTING.md)
-- [Architecture decisions](docs/decisions/)
-- [GUI visual reference specification](docs/brand-spec.md)
-- [Game8 userscript](userscript/README.md)
-- [Third-party notices](THIRD_PARTY_NOTICES.md)
+## Referenced projects
 
-## Development setup
+- [`flibustier/pokemon-tcg-pocket-database`](https://github.com/flibustier/pokemon-tcg-pocket-database)
+  supplies external card metadata and image identities. Its repository code and metadata are MIT
+  licensed; artwork may have separate rights.
+- [`ptcgp-deckcode` 2.0.0](https://github.com/Nirostar/ptcgp-deck-qr/tree/master/packages/deckcode)
+  implements the community-reverse-engineered Deck Code format under the MIT License.
+- [`qrcode` 1.5.4](https://www.npmjs.com/package/qrcode) renders QR images and is distributed under
+  the MIT License.
 
-Python 3.11 or newer is required.
+Exact versions, source hashes, copyright notices, and retained license text are in
+[`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
 
-```powershell
-py -3.11 -m venv .venv
-.\.venv\Scripts\python -m pip install --upgrade pip
-.\.venv\Scripts\python -m pip install -e ".[dev]"
-```
+## License
 
-Run the quality gate:
-
-```powershell
-.\.venv\Scripts\python -m ruff check .
-.\.venv\Scripts\python -m ruff format --check .
-.\.venv\Scripts\python -m mypy src tests
-.\.venv\Scripts\python -m pytest
-```
-
-## External card database
-
-The project is designed to read an external `pokemon-tcg-pocket-database` release or checkout. It does not vendor a duplicate `cards.json` or official card artwork.
-
-The expected development data path is currently:
-
-```text
-H:\CodexCode\ptcgp-database\dist
-```
-
-This path is an example only; pass another release with `--database-path` or
-set `PTCGP_DATABASE_PATH`.
-
-The current local release has known cross-file version skew. The baseline reads `cards.json`,
-`sets.json`, and `images/cards-by-set`; it does not use the bundled SQLite snapshot as an
-authoritative source. See the [card database contract](docs/card-database-contract.md).
-
-## License status
-
-No license has been selected for this repository yet. Third-party database code, metadata, model weights, and Pokémon artwork retain their own licenses and rights. See [Data and licensing](docs/data-and-licensing.md) and the retained [third-party notices](THIRD_PARTY_NOTICES.md).
+`ptcgp-deck2qr` is licensed under the [MIT License](LICENSE). Third-party projects, data, Pokémon
+artwork, names, logos, and trademarks retain their own licenses and rights as described above.

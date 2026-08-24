@@ -29,6 +29,9 @@ A change is ready for review when:
 - Public behavior and format changes update the relevant documentation.
 - `CHANGELOG.md` is updated for user-visible changes.
 
+By submitting a contribution, you agree to license it under the project's
+[MIT License](LICENSE) and confirm that you have the right to do so.
+
 ## Commit guidance
 
 Keep commits focused. Suggested prefixes are:

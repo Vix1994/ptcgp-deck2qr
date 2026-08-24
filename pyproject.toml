@@ -7,6 +7,8 @@ name = "ptcgp-deck2qr"
 version = "0.1.0"
 description = "Recognize Pokémon TCG Pocket deck screenshots and emit canonical deck text."
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE", "THIRD_PARTY_NOTICES.md"]
 requires-python = ">=3.11"
 authors = [{ name = "ptcgp-deck2qr contributors" }]
 keywords = ["pokemon", "ptcgp", "computer-vision", "deck-list"]
